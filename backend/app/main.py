@@ -88,3 +88,25 @@ def read_file(payload: FileReadRequest):
         return {"content": "<< Binary File >>"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Add this to the bottom of backend/app/main.py
+
+@app.post("/write")
+def write_file(payload: FileWriteRequest):
+    """Overwrites the file with new content"""
+    full_path = os.path.join(WORKSPACE_PATH, payload.filepath)
+    
+    # Security: Ensure path is within workspace
+    if not os.path.commonpath([WORKSPACE_PATH, full_path]).startswith(WORKSPACE_PATH):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    try:
+        # Ensure directory exists (in case creating a new file)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(payload.content)
+            
+        return {"status": "success", "message": "File saved"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
