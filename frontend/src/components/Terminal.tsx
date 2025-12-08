@@ -73,7 +73,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="h-64 bg-[#1e1e1e] border-t border-[#333] flex flex-col font-mono text-sm">
+    <div className="h-full bg-[#1e1e1e] border-t border-[#333] flex flex-col font-mono text-sm">
       {/* Header */}
       <div className="flex justify-between items-center px-4 py-2 bg-[#252526] border-b border-[#333]">
         <span className="text-[#cccccc] text-xs flex items-center gap-2 uppercase tracking-wider font-bold">

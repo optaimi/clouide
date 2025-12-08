@@ -48,6 +48,18 @@ def clone_repository(payload: CloneRequest):
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/init")
+def init_workspace():
+    """Clears the workspace for a new empty project"""
+    try:
+        if os.path.exists(WORKSPACE_PATH):
+            shutil.rmtree(WORKSPACE_PATH)
+        os.makedirs(WORKSPACE_PATH, exist_ok=True)
+        return {"status": "success", "message": "Workspace initialized"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/files")
 def list_files():
     """Recursively lists all files in the workspace, ignoring .git"""
@@ -152,7 +164,7 @@ def push_changes(payload: PushRequest):
     except Exception as e:
         print(f"Push Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))        
-        
+
 class CommandRequest(BaseModel):
     command: str
 
@@ -180,3 +192,59 @@ def run_command(payload: CommandRequest):
         }
     except Exception as e:
         return {"error": str(e), "output": "", "returncode": 1}
+
+# Add to the bottom of backend/app/main.py
+
+class FileDeleteRequest(BaseModel):
+    filepath: str
+
+class FileRenameRequest(BaseModel):
+    old_path: str
+    new_path: str
+
+@app.post("/delete")
+def delete_item(payload: FileDeleteRequest):
+    """Deletes a file or directory"""
+    full_path = os.path.join(WORKSPACE_PATH, payload.filepath)
+    
+    # Security Check
+    if not os.path.commonpath([WORKSPACE_PATH, full_path]).startswith(WORKSPACE_PATH):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    try:
+        if os.path.isdir(full_path):
+            shutil.rmtree(full_path)
+        else:
+            os.remove(full_path)
+        return {"status": "success", "message": "Deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/rename")
+def rename_item(payload: FileRenameRequest):
+    """Renames (or moves) a file"""
+    old_full = os.path.join(WORKSPACE_PATH, payload.old_path)
+    new_full = os.path.join(WORKSPACE_PATH, payload.new_path)
+
+    # Security Checks
+    if not os.path.commonpath([WORKSPACE_PATH, old_full]).startswith(WORKSPACE_PATH):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not os.path.commonpath([WORKSPACE_PATH, new_full]).startswith(WORKSPACE_PATH):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not os.path.exists(old_full):
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    if os.path.exists(new_full):
+        raise HTTPException(status_code=400, detail="Destination already exists")
+
+    try:
+        # Create parent directory if moving to a new folder
+        os.makedirs(os.path.dirname(new_full), exist_ok=True)
+        os.rename(old_full, new_full)
+        return {"status": "success", "message": "Renamed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

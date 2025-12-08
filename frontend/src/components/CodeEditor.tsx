@@ -13,14 +13,39 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [language, setLanguage] = useState('typescript'); // Default
   
-  // Ref to hold the current value of the editor so we can save it
   const editorRef = useRef<any>(null);
 
-  // 1. Load File Content
+  // Helper: Detect language from filename
+  const getLanguageFromFilename = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'js': return 'javascript';
+      case 'jsx': return 'javascript';
+      case 'ts': return 'typescript';
+      case 'tsx': return 'typescript';
+      case 'py': return 'python';
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'json': return 'json';
+      case 'md': return 'markdown';
+      case 'sql': return 'sql';
+      case 'sh': return 'shell';
+      case 'yaml':
+      case 'yml': return 'yaml';
+      case 'dockerfile': return 'dockerfile';
+      default: return 'plaintext';
+    }
+  };
+
   useEffect(() => {
     if (!activeFile) return;
 
+    // 1. Detect Language immediately
+    setLanguage(getLanguageFromFilename(activeFile));
+
+    // 2. Load Content
     const loadFile = async () => {
       setLoading(true);
       setStatus('idle');
@@ -37,7 +62,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile }) => {
     loadFile();
   }, [activeFile]);
 
-  // 2. Handle Save Logic
   const handleSave = async () => {
     if (!activeFile || !editorRef.current) return;
 
@@ -50,8 +74,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile }) => {
         content: currentValue 
       });
       setStatus('saved');
-      
-      // Reset status after 2 seconds
       setTimeout(() => setStatus('idle'), 2000);
     } catch (err) {
       console.error(err);
@@ -61,11 +83,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile }) => {
     }
   };
 
-  // 3. Setup Editor (Bind Ctrl+S)
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
-
-    // Add Command: Ctrl+S or Cmd+S
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();
     });
@@ -81,9 +100,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile }) => {
 
   return (
     <div className="flex-1 h-full bg-[#1e1e1e] relative flex flex-col">
-      {/* Editor Header / Toolbar */}
       <div className="h-10 bg-[#1e1e1e] border-b border-[#252526] flex items-center justify-between px-4">
-        <span className="text-sm text-[#cccccc] opacity-80">{activeFile}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-[#cccccc] opacity-80">{activeFile}</span>
+          {/* Show detected language badge */}
+          <span className="text-[10px] uppercase bg-[#333] text-[#888] px-1.5 py-0.5 rounded">
+            {language}
+          </span>
+        </div>
         
         <div className="flex items-center gap-2">
           {status === 'saved' && <span className="text-xs text-green-500 flex items-center gap-1"><Check size={12}/> Saved</span>}
@@ -100,17 +124,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile }) => {
         </div>
       </div>
 
-      {/* Main Editor */}
       <div className="flex-1 relative">
         {loading && <div className="absolute top-0 w-full h-1 bg-blue-500 animate-pulse z-10" />}
         <Editor
           height="100%"
           theme="vs-dark"
-          path={activeFile}
+          path={activeFile} // This helps Monaco reset undo history per file
           value={content}
+          language={language} // <--- DYNAMIC LANGUAGE
           onMount={handleEditorDidMount}
-          onChange={(value) => setContent(value || "")} // Update local state
-          defaultLanguage="typescript"
+          onChange={(value) => setContent(value || "")}
           options={{
             minimap: { enabled: false },
             fontSize: 14,
