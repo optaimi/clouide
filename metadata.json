@@ -1,0 +1,5 @@
+{
+  "name": "Nebula Cloud IDE",
+  "description": "A full-stack Monorepo Cloud IDE using React, FastAPI, GitPython, and Google Cloud Storage.",
+  "requestFramePermissions": []
+}
