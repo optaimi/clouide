@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import git
+import subprocess
 import shutil
 import os
 
@@ -151,3 +152,31 @@ def push_changes(payload: PushRequest):
     except Exception as e:
         print(f"Push Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))        
+        
+class CommandRequest(BaseModel):
+    command: str
+
+@app.post("/terminal")
+def run_command(payload: CommandRequest):
+    """Executes a shell command in the workspace"""
+    try:
+        # Security: In a real app, you would whitelist commands here.
+        # For a Cloud IDE, we allow everything but run it in the workspace dir.
+        
+        # Run the command
+        result = subprocess.run(
+            payload.command,
+            shell=True,
+            cwd=WORKSPACE_PATH,
+            capture_output=True,
+            text=True
+        )
+        
+        # Return both Output (stdout) and Errors (stderr)
+        return {
+            "output": result.stdout,
+            "error": result.stderr,
+            "returncode": result.returncode
+        }
+    except Exception as e:
+        return {"error": str(e), "output": "", "returncode": 1}

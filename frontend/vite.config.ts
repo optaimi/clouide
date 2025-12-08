@@ -26,6 +26,8 @@ export default defineConfig({
       '/read':  'http://127.0.0.1:8000',
       '/write': 'http://127.0.0.1:8000',
       '/execute': 'http://127.0.0.1:8000',
+      '/push': 'http://127.0.0.1:8000',
+      '/terminal': 'http://127.0.0.1:8000',
       '/health': 'http://127.0.0.1:8000',
     },
   },
