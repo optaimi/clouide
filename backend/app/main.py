@@ -8,9 +8,6 @@ import os
 
 app = FastAPI()
 
-# CORSMiddleware configuration
-# Allow all origins for development convenience. 
-# In production, you would restrict this to your Cloud Run URL.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,45 +16,75 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global configuration
 WORKSPACE_PATH = "/tmp/workspace"
 
 class CloneRequest(BaseModel):
     url: str
 
+class FileReadRequest(BaseModel):
+    filepath: str
+
+class FileWriteRequest(BaseModel):
+    filepath: str
+    content: str
+
 @app.get("/")
 def health_check():
-    """Simple health check to verify server is running."""
     return {"status": "ok", "service": "Cloud IDE Backend"}
 
 @app.post("/clone")
 def clone_repository(payload: CloneRequest):
-    """
-    Clones a public GitHub repository into the workspace.
-    WARNING: This deletes any existing data in WORKSPACE_PATH.
-    """
     try:
-        # 1. Clean up existing workspace to avoid conflicts
         if os.path.exists(WORKSPACE_PATH):
             shutil.rmtree(WORKSPACE_PATH)
-        
-        # 2. Create the directory (optional, clone_from usually handles this, 
-        # but creating the parent ensures permissions are right)
         os.makedirs(WORKSPACE_PATH, exist_ok=True)
-        # We actually remove it right before cloning because clone_from expects an empty or non-existent dir
-        shutil.rmtree(WORKSPACE_PATH) 
-
-        # 3. Clone the repo
-        print(f"Cloning {payload.url} into {WORKSPACE_PATH}...")
-        git.Repo.clone_from(payload.url, WORKSPACE_PATH)
+        shutil.rmtree(WORKSPACE_PATH) # Git requires empty dir
         
-        return {"status": "success", "message": f"Cloned {payload.url}"}
-
-    except git.GitCommandError as e:
-        # Handle specific Git errors (like private repos or bad URLs)
-        print(f"Git Error: {e}")
-        raise HTTPException(status_code=400, detail=f"Git Error: {e}")
+        print(f"Cloning {payload.url}...")
+        git.Repo.clone_from(payload.url, WORKSPACE_PATH)
+        return {"status": "success"}
     except Exception as e:
-        # Handle generic system errors
-        print(f"System Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Server Error: {str(e)}")
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/files")
+def list_files():
+    """Recursively lists all files in the workspace, ignoring .git"""
+    files = []
+    if not os.path.exists(WORKSPACE_PATH):
+        return {"files": []}
+        
+    for root, dirs, filenames in os.walk(WORKSPACE_PATH):
+        # Filter out .git directories
+        if ".git" in dirs:
+            dirs.remove(".git")
+            
+        for filename in filenames:
+            if filename.startswith(".git"): continue
+            
+            full_path = os.path.join(root, filename)
+            rel_path = os.path.relpath(full_path, WORKSPACE_PATH)
+            files.append(rel_path)
+            
+    return {"files": sorted(files)}
+
+@app.post("/read")
+def read_file(payload: FileReadRequest):
+    """Reads content of a file"""
+    full_path = os.path.join(WORKSPACE_PATH, payload.filepath)
+    
+    # Security: Ensure path is within workspace
+    if not os.path.commonpath([WORKSPACE_PATH, full_path]).startswith(WORKSPACE_PATH):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    try:
+        with open(full_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"content": content}
+    except UnicodeDecodeError:
+        return {"content": "<< Binary File >>"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
