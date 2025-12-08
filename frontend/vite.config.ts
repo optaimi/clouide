@@ -1,3 +1,4 @@
+// frontend/vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -19,11 +20,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Proxy API requests to the FastAPI backend during local development
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
+      // Forward these specific paths to the backend running on port 8000
+      '/clone': 'http://127.0.0.1:8000',
+      '/files': 'http://127.0.0.1:8000',
+      '/read':  'http://127.0.0.1:8000',
+      '/write': 'http://127.0.0.1:8000',
+      '/execute': 'http://127.0.0.1:8000',
+      '/health': 'http://127.0.0.1:8000',
     },
   },
 });

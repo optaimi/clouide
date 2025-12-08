@@ -19,7 +19,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
     
     try {
       // Direct call to backend port 8000
-      await axios.post('http://localhost:8000/clone', { url: repoUrl });
+      await axios.post('/clone', { url: repoUrl });
       onProjectLoaded();
     } catch (err: any) {
       console.error(err);
