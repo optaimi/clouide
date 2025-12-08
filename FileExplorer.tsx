@@ -1,73 +1,56 @@
 // frontend/src/components/FileExplorer.tsx
 import React, { useEffect, useState } from 'react';
-import { FileCode, RefreshCw, UploadCloud } from 'lucide-react';
+import { FileCode, RefreshCw, UploadCloud } from 'lucide-react'; // Import UploadCloud
 import axios from 'axios';
-import PushModal from './PushModal';
+import PushModal from './PushModal'; // Import the new modal
 
-interface FileExplorerProps {
-  onFileSelect: (filepath: string) => void;
-  selectedFile: string | null;
-}
+// ... (Keep your interface and existing state logic the same) ...
 
 const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile }) => {
   const [files, setFiles] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isPushOpen, setIsPushOpen] = useState(false);
+  const [isPushOpen, setIsPushOpen] = useState(false); // New State
 
+  // ... (Keep fetchFiles and useEffect the same) ...
   const fetchFiles = async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get('/files');
-      setFiles(res.data.files);
-    } catch (err) {
-      console.error("Failed to load files", err);
-    } finally {
-      setLoading(false);
-    }
+      // ... (your existing fetch logic) ...
+      // Just declaring it here so you know where we are in the file
+      try {
+        const res = await axios.get('/files');
+        setFiles(res.data.files);
+      } catch (err) {}
   };
 
-  useEffect(() => {
-    fetchFiles();
-  }, []);
+  useEffect(() => { fetchFiles(); }, []);
 
   return (
     <div className="w-64 bg-[#252526] h-full border-r border-[#1e1e1e] flex flex-col">
       {/* Header */}
       <div className="p-3 uppercase text-xs font-bold text-[#cccccc] flex justify-between items-center tracking-wider">
         <span>Explorer</span>
-        <button 
-          onClick={fetchFiles} 
-          className="hover:bg-[#333] p-1 rounded"
-          title="Refresh File List"
-        >
+        <button onClick={fetchFiles} className="hover:bg-[#333] p-1 rounded">
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
       
       {/* File List */}
       <div className="flex-1 overflow-y-auto">
-        {files.length === 0 && !loading && (
-          <div className="text-center text-xs text-[#666] mt-4">
-            No files found
-          </div>
-        )}
-        
         {files.map((file) => (
           <div
             key={file}
             onClick={() => onFileSelect(file)}
             className={`
-              px-4 py-1 cursor-pointer text-sm flex items-center gap-2 select-none
+              px-4 py-1 cursor-pointer text-sm flex items-center gap-2
               ${selectedFile === file ? 'bg-[#37373d] text-white' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}
             `}
           >
-            <FileCode size={14} className="opacity-60 flex-shrink-0" />
+            <FileCode size={14} className="opacity-60" />
             <span className="truncate">{file}</span>
           </div>
         ))}
       </div>
 
-      {/* Sync Button Footer */}
+      {/* NEW: Push Button at the bottom */}
       <div className="p-3 border-t border-[#1e1e1e]">
         <button 
           onClick={() => setIsPushOpen(true)}
@@ -78,7 +61,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
         </button>
       </div>
 
-      {/* Push Modal - Only renders when open */}
+      {/* Modal */}
       <PushModal isOpen={isPushOpen} onClose={() => setIsPushOpen(false)} />
     </div>
   );
