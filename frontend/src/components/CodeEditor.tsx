@@ -33,6 +33,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
       case 'ts': return 'typescript';
       case 'tsx': return 'typescript';
       case 'py': return 'python';
+      case 'php': return 'php';
       case 'html': return 'html';
       case 'css': return 'css';
       case 'json': return 'json';
@@ -97,14 +98,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
 
   if (!activeFile) {
     return (
-      <div className="flex-1 bg-ide-bg flex items-center justify-center text-ide-dim">
+      <div className="flex-1 bg-ide-bg flex items-center justify-center text-ide-dim transition-colors duration-200">
         Select a file to begin editing
       </div>
     );
   }
 
   return (
-    <div className="flex-1 h-full bg-ide-bg relative flex flex-col">
+    <div className="flex-1 h-full bg-ide-bg relative flex flex-col transition-colors duration-200">
       <div className="h-10 bg-ide-bg border-b border-ide-border flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <span className="text-sm text-ide-text opacity-80">{activeFile}</span>

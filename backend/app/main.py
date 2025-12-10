@@ -1,5 +1,5 @@
 # backend/app/main.py
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -275,10 +275,17 @@ def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
         return {"error": str(e), "output": "", "returncode": 1}
 
 @app.get("/download")
-def download_workspace(x_session_id: str = Header(...)):
-    workspace = get_workspace_path(x_session_id)
+def download_workspace(x_session_id: Optional[str] = Header(None), session_id: Optional[str] = Query(None)):
+    """Zips the workspace and returns it"""
+    # Prioritise Header, fall back to Query Param (for browser downloads)
+    target_session = x_session_id or session_id
+    
+    if not target_session:
+        raise HTTPException(status_code=400, detail="Session ID required")
+
+    workspace = get_workspace_path(target_session)
     try:
-        zip_path = f"/tmp/workspace_{x_session_id}"
+        zip_path = f"/tmp/workspace_{target_session}"
         shutil.make_archive(zip_path, 'zip', workspace)
         return FileResponse(f"{zip_path}.zip", filename="workspace.zip", media_type="application/zip")
     except Exception as e:

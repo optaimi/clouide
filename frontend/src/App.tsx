@@ -5,6 +5,7 @@ import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
 import Terminal from './components/Terminal';
 import MenuBar from './components/MenuBar'; // Import MenuBar
+import api from './utils/api';
 import { TerminalSquare, Settings, X } from 'lucide-react';
 import { applyTheme, getSavedTheme, Theme } from './utils/theme';
 
@@ -27,9 +28,22 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Theme settings
 
   useEffect(() => {
+    // 1. Load Theme
     const saved = getSavedTheme();
     setCurrentTheme(saved);
     applyTheme(saved);
+// 2. Check for existing session/files (Persistence Fix)
+    const checkSession = async () => {
+      try {
+        // Try to list files. If successful, it means the session exists and is valid.
+        await api.get('/files');
+        setIsLoaded(true); // <--- Skip the Loader screen!
+      } catch (err) {
+        // Session invalid or empty, show Loader
+        setIsLoaded(false);
+      }
+    };
+    checkSession();
   }, []);
 
   const handleThemeChange = (t: Theme) => {
