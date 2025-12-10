@@ -1,4 +1,3 @@
-````markdown
 # Clouide
 
 **Clouide** is a full-stack, browser-based integrated development environment designed to run securely on cloud infrastructure. It features a modern React frontend, a powerful FastAPI backend, and runs entirely within Docker containers to ensure security and user isolation.
@@ -45,17 +44,14 @@ This project includes a `deploy.sh` script that automates the entire build and d
    ```bash
    git clone <your-repo-url>
    cd clouide_app
-````
 
 2.  **Make the Deploy Script Executable**
 
     ```bash
     chmod +x deploy.sh
-    ```
 
 3.  **Run the Deployment**
     This script will:
-
       - Pull the latest changes from Git.
       - Build the React frontend locally.
       - Stop any running containers.
@@ -79,7 +75,7 @@ This project includes a `deploy.sh` script that automates the entire build and d
 
 To ensure security when running on a cloud VM:
 
-  - **User Isolation**: The backend runs inside a Docker container as a generic user named `coder`. This prevents the web terminal from accessing root files or your cloud provider credentials (like `adamenty`).
+  - **User Isolation**: The backend runs inside a Docker container as a generic user named `coder`. This prevents the web terminal from accessing root files or your cloud provider credentials.
   - **Volume Mapping**: User projects are persisted in a local `workspaces/` directory, which is mounted into the container with restricted permissions.
   - **Frontend Mounting**: The frontend build artifacts (`dist/`) are mounted read-only into the container for serving.
 
@@ -99,17 +95,6 @@ To ensure security when running on a cloud VM:
 └── Dockerfile              # Backend container definition
 ```
 
-## 🤝 Contributing
-
-1.  Fork the repository.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
-
 ## 📄 Licence
 
 Distributed under the MIT Licence. See `LICENSE` for more information.
-
-```
-```
