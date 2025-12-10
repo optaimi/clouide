@@ -8,11 +8,13 @@ export default {
     extend: {
       colors: {
         ide: {
-          bg: '#1e1e1e',
-          sidebar: '#252526',
-          activity: '#333333',
-          accent: '#007acc',
-          text: '#cccccc',
+          bg: 'var(--bg-primary)',
+          sidebar: 'var(--bg-secondary)',
+          activity: 'var(--bg-activity)',
+          accent: 'var(--accent)',
+          text: 'var(--text-primary)',
+          dim: 'var(--text-secondary)',
+          border: 'var(--border)',
         }
       }
     },

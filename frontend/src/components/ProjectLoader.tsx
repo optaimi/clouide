@@ -1,6 +1,6 @@
 // frontend/src/components/ProjectLoader.tsx
 import React, { useState } from 'react';
-import { GitBranch, Loader2, FilePlus, ArrowLeft } from 'lucide-react';
+import { GitBranch, Loader2, FilePlus, ArrowLeft, Cloud } from 'lucide-react';
 import axios from 'axios';
 
 interface ProjectLoaderProps {
@@ -45,11 +45,16 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-[#1e1e1e] text-[#cccccc]">
+    <div className="flex h-screen w-screen items-center justify-center bg-ide-bg text-ide-text transition-colors duration-200">
       <div className="w-full max-w-2xl p-8">
+        
+        {/* BRANDING HEADER - Replaces the old "Nebula" header */}
         <div className="flex flex-col items-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Nebula Cloud IDE</h1>
-          <p className="text-white/40">Select an option to begin your session</p>
+          <div className="p-4 bg-ide-accent/10 rounded-full mb-4">
+            <Cloud size={48} className="text-ide-accent" />
+          </div>
+          <h1 className="text-4xl font-bold text-ide-text mb-2 tracking-tight">Clouide</h1>
+          <p className="text-ide-dim">Cloud Native Development Environment</p>
         </div>
 
         {view === 'menu' ? (
@@ -58,18 +63,18 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
             <button
               onClick={handleNewProject}
               disabled={isLoading}
-              className="group relative p-8 bg-[#252526] hover:bg-[#2a2d2e] border border-[#333] rounded-xl transition-all hover:border-[#007acc] text-left"
+              className="group relative p-8 bg-ide-sidebar hover:bg-ide-activity/50 border border-ide-border rounded-xl transition-all hover:border-ide-accent text-left"
             >
-              <div className="p-4 bg-[#333] w-fit rounded-lg mb-4 group-hover:bg-[#007acc]/20 transition-colors">
-                <FilePlus size={32} className="text-white group-hover:text-[#007acc]" />
+              <div className="p-4 bg-ide-activity w-fit rounded-lg mb-4 group-hover:bg-ide-accent/20 transition-colors">
+                <FilePlus size={32} className="text-ide-text group-hover:text-ide-accent" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">New Project</h3>
-              <p className="text-sm text-white/40">
+              <h3 className="text-xl font-bold text-ide-text mb-2">New Project</h3>
+              <p className="text-sm text-ide-dim">
                 Start with an empty workspace. You can initialize Git or pull changes later.
               </p>
               {isLoading && (
-                <div className="absolute inset-0 bg-[#252526]/80 flex items-center justify-center rounded-xl">
-                  <Loader2 className="animate-spin text-[#007acc]" />
+                <div className="absolute inset-0 bg-ide-sidebar/80 flex items-center justify-center rounded-xl">
+                  <Loader2 className="animate-spin text-ide-accent" />
                 </div>
               )}
             </button>
@@ -77,23 +82,23 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
             {/* Option B: Clone Repo */}
             <button
               onClick={() => setView('clone')}
-              className="group p-8 bg-[#252526] hover:bg-[#2a2d2e] border border-[#333] rounded-xl transition-all hover:border-[#a174ff] text-left"
+              className="group p-8 bg-ide-sidebar hover:bg-ide-activity/50 border border-ide-border rounded-xl transition-all hover:border-[#a174ff] text-left"
             >
-              <div className="p-4 bg-[#333] w-fit rounded-lg mb-4 group-hover:bg-[#a174ff]/20 transition-colors">
-                <GitBranch size={32} className="text-white group-hover:text-[#a174ff]" />
+              <div className="p-4 bg-ide-activity w-fit rounded-lg mb-4 group-hover:bg-[#a174ff]/20 transition-colors">
+                <GitBranch size={32} className="text-ide-text group-hover:text-[#a174ff]" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Open Repository</h3>
-              <p className="text-sm text-white/40">
+              <h3 className="text-xl font-bold text-ide-text mb-2">Open Repository</h3>
+              <p className="text-sm text-ide-dim">
                 Clone an existing project from GitHub or another Git provider.
               </p>
             </button>
           </div>
         ) : (
           /* Clone View */
-          <div className="max-w-md mx-auto bg-[#252526] p-8 rounded-xl border border-[#333] shadow-2xl relative">
+          <div className="max-w-md mx-auto bg-ide-sidebar p-8 rounded-xl border border-ide-border shadow-2xl relative">
             <button 
               onClick={() => { setView('menu'); setError(null); }}
-              className="absolute top-4 left-4 p-2 hover:bg-[#333] rounded-full text-white/50 hover:text-white transition-colors"
+              className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text transition-colors"
             >
               <ArrowLeft size={20} />
             </button>
@@ -102,7 +107,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
               <div className="p-3 bg-[#a174ff]/10 rounded-full w-fit mx-auto mb-4">
                 <GitBranch size={32} className="text-[#a174ff]" />
               </div>
-              <h2 className="text-xl font-bold text-white">Clone Repository</h2>
+              <h2 className="text-xl font-bold text-ide-text">Clone Repository</h2>
             </div>
 
             <div className="space-y-4">
@@ -111,7 +116,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 placeholder="https://github.com/username/repo.git"
-                className="w-full px-4 py-3 bg-[#1e1e1e] border border-[#333] rounded focus:outline-none focus:border-[#a174ff] text-white placeholder-white/20 transition-colors"
+                className="w-full px-4 py-3 bg-ide-bg border border-ide-border rounded focus:outline-none focus:border-[#a174ff] text-ide-text placeholder-ide-dim/50 transition-colors"
               />
 
               {error && (

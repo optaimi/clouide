@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Default (Dark) Theme - Matches VS Code Dark */
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-activity: #333333;
+  --text-primary: #cccccc;
+  --text-secondary: #9ca3af;
+  --accent: #007acc;
+  --border: #1e1e1e;
+}
+
+[data-theme='light'] {
+  /* Light Theme - Fixed Contrast */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f3f3;
+  --bg-activity: #e5e5e5; /* <--- CHANGED THIS from #2c2c2c to #e5e5e5 */
+  --text-primary: #333333;
+  --text-secondary: #6b7280;
+  --accent: #007acc;
+  --border: #e5e7eb;
+}
+
+[data-theme='midnight'] {
+  /* Midnight Theme */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-activity: #334155;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --accent: #38bdf8;
+  --border: #0f172a;
+}
+
+/* Apply variables to utility classes */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}

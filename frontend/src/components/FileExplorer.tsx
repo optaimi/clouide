@@ -33,10 +33,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
     if (!filename) return;
 
     try {
-      // Create empty file using /write endpoint
       await axios.post('/write', { filepath: filename, content: "" });
       await fetchFiles();
-      onFileSelect(filename); // Open the new file
+      onFileSelect(filename);
     } catch (err: any) {
       alert("Error creating file: " + (err.response?.data?.detail || err.message));
     }
@@ -52,7 +51,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
     try {
       await axios.post('/rename', { old_path: selectedFile, new_path: newName });
       await fetchFiles();
-      onFileSelect(newName); // Select the new name
+      onFileSelect(newName);
     } catch (err: any) {
       alert("Error renaming file: " + (err.response?.data?.detail || err.message));
     }
@@ -61,25 +60,25 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
   // 4. Delete File
   const handleDelete = async () => {
     if (!selectedFile) return;
-    
     if (!window.confirm(`Are you sure you want to delete '${selectedFile}'?`)) return;
 
     try {
       await axios.post('/delete', { filepath: selectedFile });
       await fetchFiles();
-      onFileSelect(""); // Deselect
+      onFileSelect(""); 
     } catch (err: any) {
       alert("Error deleting file: " + (err.response?.data?.detail || err.message));
     }
   };
 
   return (
-    <div className="w-64 bg-[#252526] h-full border-r border-[#1e1e1e] flex flex-col">
+    // Updated to use semantic theme classes
+    <div className="w-64 bg-ide-sidebar h-full border-r border-ide-border flex flex-col transition-colors duration-200">
       {/* Header */}
-      <div className="p-3 bg-[#252526] border-b border-[#1e1e1e]">
-        <div className="flex justify-between items-center text-[#cccccc] mb-2">
-          <span className="uppercase text-xs font-bold tracking-wider">Explorer</span>
-          <button onClick={fetchFiles} className="hover:bg-[#333] p-1 rounded" title="Refresh">
+      <div className="p-3 bg-ide-sidebar border-b border-ide-border">
+        <div className="flex justify-between items-center text-ide-text mb-2">
+          <span className="uppercase text-xs font-bold tracking-wider text-ide-dim">Explorer</span>
+          <button onClick={fetchFiles} className="hover:bg-ide-activity p-1 rounded text-ide-text" title="Refresh">
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
@@ -88,7 +87,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
         <div className="flex gap-1">
           <button 
             onClick={handleNewFile}
-            className="flex-1 bg-[#333] hover:bg-[#444] text-[#cccccc] py-1 rounded text-xs flex justify-center"
+            className="flex-1 bg-ide-activity hover:bg-ide-activity/80 text-ide-text py-1 rounded text-xs flex justify-center transition-colors"
             title="New File"
           >
             <FilePlus size={14} />
@@ -96,7 +95,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
           <button 
             onClick={handleRename}
             disabled={!selectedFile}
-            className="flex-1 bg-[#333] hover:bg-[#444] disabled:opacity-30 text-[#cccccc] py-1 rounded text-xs flex justify-center"
+            className="flex-1 bg-ide-activity hover:bg-ide-activity/80 disabled:opacity-30 text-ide-text py-1 rounded text-xs flex justify-center transition-colors"
             title="Rename Selected"
           >
             <Edit2 size={14} />
@@ -104,7 +103,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
           <button 
             onClick={handleDelete}
             disabled={!selectedFile}
-            className="flex-1 bg-[#333] hover:bg-red-900/50 disabled:opacity-30 text-[#cccccc] py-1 rounded text-xs flex justify-center"
+            className="flex-1 bg-ide-activity hover:bg-red-900/50 hover:text-red-400 disabled:opacity-30 text-ide-text py-1 rounded text-xs flex justify-center transition-colors"
             title="Delete Selected"
           >
             <Trash2 size={14} />
@@ -115,7 +114,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
       {/* File List */}
       <div className="flex-1 overflow-y-auto pt-2">
         {files.length === 0 && !loading && (
-          <div className="text-center text-xs text-[#666] mt-4">No files found</div>
+          <div className="text-center text-xs text-ide-dim mt-4">No files found</div>
         )}
         
         {files.map((file) => (
@@ -123,8 +122,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
             key={file}
             onClick={() => onFileSelect(file)}
             className={`
-              px-4 py-1 cursor-pointer text-sm flex items-center gap-2 select-none
-              ${selectedFile === file ? 'bg-[#37373d] text-white' : 'text-[#cccccc] hover:bg-[#2a2d2e]'}
+              px-4 py-1 cursor-pointer text-sm flex items-center gap-2 select-none transition-colors
+              ${selectedFile === file 
+                ? 'bg-ide-activity text-ide-text border-l-2 border-ide-accent' 
+                : 'text-ide-dim hover:bg-ide-activity hover:text-ide-text'}
             `}
           >
             <FileCode size={14} className="opacity-60 flex-shrink-0" />
