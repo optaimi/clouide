@@ -1,7 +1,7 @@
 // frontend/src/components/Terminal.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { TerminalSquare, X, ChevronRight } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
 
 interface TerminalProps {
   isOpen: boolean;
@@ -50,7 +50,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
     }
 
     try {
-      const res = await axios.post('/terminal', { command: cmd });
+      const res = await api.post('/terminal', { command: cmd });
       
       if (res.data.output) {
         setHistory(prev => [...prev, { type: 'output', content: res.data.output }]);

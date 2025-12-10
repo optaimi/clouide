@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { Save, Check, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
 
 // 1. Updated Interface to accept 'settings'
 interface CodeEditorProps {
@@ -55,7 +55,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
       setLoading(true);
       setStatus('idle');
       try {
-        const res = await axios.post('/read', { filepath: activeFile });
+        const res = await api.post('/read', { filepath: activeFile });
         setContent(res.data.content);
       } catch (err) {
         setContent("// Error loading file");
@@ -74,7 +74,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
     setStatus('idle');
     try {
       const currentValue = editorRef.current.getValue();
-      await axios.post('/write', { 
+      await api.post('/write', { 
         filepath: activeFile, 
         content: currentValue 
       });

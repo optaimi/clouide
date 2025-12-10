@@ -1,7 +1,7 @@
 // frontend/src/components/FileExplorer.tsx
 import React, { useEffect, useState } from 'react';
 import { FileCode, RefreshCw, FilePlus, Trash2, Edit2 } from 'lucide-react';
-import axios from 'axios';
+import api from '../utils/api';
 
 interface FileExplorerProps {
   onFileSelect: (filepath: string) => void;
@@ -16,7 +16,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/files');
+      const res = await api.get('/files');
       setFiles(res.data.files);
     } catch (err) {
       console.error("Failed to load files", err);
@@ -33,7 +33,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
     if (!filename) return;
 
     try {
-      await axios.post('/write', { filepath: filename, content: "" });
+      await api.post('/write', { filepath: filename, content: "" });
       await fetchFiles();
       onFileSelect(filename);
     } catch (err: any) {
@@ -49,7 +49,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
     if (!newName || newName === selectedFile) return;
 
     try {
-      await axios.post('/rename', { old_path: selectedFile, new_path: newName });
+      await api.post('/rename', { old_path: selectedFile, new_path: newName });
       await fetchFiles();
       onFileSelect(newName);
     } catch (err: any) {
@@ -63,7 +63,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
     if (!window.confirm(`Are you sure you want to delete '${selectedFile}'?`)) return;
 
     try {
-      await axios.post('/delete', { filepath: selectedFile });
+      await api.post('/delete', { filepath: selectedFile });
       await fetchFiles();
       onFileSelect(""); 
     } catch (err: any) {

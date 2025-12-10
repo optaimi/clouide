@@ -1,12 +1,14 @@
 # backend/app/main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import git
 import subprocess
 import shutil
 import os
+import json
 
 app = FastAPI()
 
@@ -18,7 +20,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-WORKSPACE_PATH = "/tmp/workspace"
+# Base directory where all user workspaces live
+BASE_DIR = os.path.expanduser("~/clouide_workspaces")
+
+# --- Helper Functions ---
+
+def get_workspace_path(session_id: str):
+    """Generates a private path for this specific user session"""
+    if not session_id or len(session_id) < 5:
+        raise HTTPException(status_code=400, detail="Invalid Session ID")
+    return os.path.join(BASE_DIR, session_id, "repo")
+
+def get_config_path(session_id: str):
+    """Path to store the user's github token"""
+    return os.path.join(BASE_DIR, session_id, "config.json")
+
+def save_credentials(session_id: str, username: str, token: str):
+    config_path = get_config_path(session_id)
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump({"username": username, "token": token}, f)
+
+def get_credentials(session_id: str):
+    config_path = get_config_path(session_id)
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            return json.load(f)
+    return None
+
+def inject_auth(url: str, username: str, token: str):
+    clean_url = url.replace("https://", "") if url.startswith("https://") else url
+    return f"https://{username}:{token}@{clean_url}"
+
+# --- Models ---
 
 class CloneRequest(BaseModel):
     url: str
@@ -30,162 +64,208 @@ class FileWriteRequest(BaseModel):
     filepath: str
     content: str
 
-@app.get("/")
-def health_check():
-    return {"status": "ok", "service": "Cloud IDE Backend"}
+class FileDeleteRequest(BaseModel):
+    filepath: str
 
-@app.post("/clone")
-def clone_repository(payload: CloneRequest):
+class FileRenameRequest(BaseModel):
+    old_path: str
+    new_path: str
+
+class LoginRequest(BaseModel):
+    username: str
+    token: str
+
+class PushRequest(BaseModel):
+    commit_message: str
+
+class CommandRequest(BaseModel):
+    command: str
+
+# --- Endpoints ---
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "Clouide Multi-Tenant"}
+
+@app.post("/login")
+def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
     try:
-        if os.path.exists(WORKSPACE_PATH):
-            shutil.rmtree(WORKSPACE_PATH)
-        os.makedirs(WORKSPACE_PATH, exist_ok=True)
-        shutil.rmtree(WORKSPACE_PATH) # Git requires empty dir
-        
-        print(f"Cloning {payload.url}...")
-        git.Repo.clone_from(payload.url, WORKSPACE_PATH)
-        return {"status": "success"}
+        save_credentials(x_session_id, payload.username, payload.token)
+        return {"status": "success", "message": "Credentials saved"}
     except Exception as e:
-        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/logout")
+def logout_git(x_session_id: str = Header(...)):
+    try:
+        config_path = get_config_path(x_session_id)
+        if os.path.exists(config_path):
+            os.remove(config_path)
+        return {"status": "success", "message": "Logged out"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/init")
-def init_workspace():
-    """Clears the workspace for a new empty project"""
+def init_workspace(x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
     try:
-        if os.path.exists(WORKSPACE_PATH):
-            shutil.rmtree(WORKSPACE_PATH)
-        os.makedirs(WORKSPACE_PATH, exist_ok=True)
+        if os.path.exists(workspace):
+            shutil.rmtree(workspace)
+        os.makedirs(workspace, exist_ok=True)
         return {"status": "success", "message": "Workspace initialized"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/clone")
+def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    creds = get_credentials(x_session_id)
+    
+    try:
+        if os.path.exists(workspace):
+            shutil.rmtree(workspace)
+        os.makedirs(workspace, exist_ok=True)
+        shutil.rmtree(workspace) 
+
+        clone_url = payload.url
+        if creds:
+            clone_url = inject_auth(payload.url, creds['username'], creds['token'])
+            print(f"Cloning with auth for user {creds['username']}...")
+        else:
+            print(f"Cloning public repo...")
+
+        git.Repo.clone_from(clone_url, workspace)
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Clone Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/files")
-def list_files():
-    """Recursively lists all files in the workspace, ignoring .git"""
+def list_files(x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
     files = []
-    if not os.path.exists(WORKSPACE_PATH):
+    if not os.path.exists(workspace):
         return {"files": []}
         
-    for root, dirs, filenames in os.walk(WORKSPACE_PATH):
-        # Filter out .git directories
-        if ".git" in dirs:
-            dirs.remove(".git")
-            
+    for root, dirs, filenames in os.walk(workspace):
+        if ".git" in dirs: dirs.remove(".git")
         for filename in filenames:
             if filename.startswith(".git"): continue
-            
             full_path = os.path.join(root, filename)
-            rel_path = os.path.relpath(full_path, WORKSPACE_PATH)
+            rel_path = os.path.relpath(full_path, workspace)
             files.append(rel_path)
-            
     return {"files": sorted(files)}
 
 @app.post("/read")
-def read_file(payload: FileReadRequest):
-    """Reads content of a file"""
-    full_path = os.path.join(WORKSPACE_PATH, payload.filepath)
+def read_file(payload: FileReadRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    full_path = os.path.join(workspace, payload.filepath)
     
-    # Security: Ensure path is within workspace
-    if not os.path.commonpath([WORKSPACE_PATH, full_path]).startswith(WORKSPACE_PATH):
+    if not os.path.commonpath([workspace, full_path]).startswith(workspace):
         raise HTTPException(status_code=403, detail="Access denied")
-        
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="File not found")
         
     try:
         with open(full_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return {"content": content}
+            return {"content": f.read()}
     except UnicodeDecodeError:
         return {"content": "<< Binary File >>"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Add this to the bottom of backend/app/main.py
-
 @app.post("/write")
-def write_file(payload: FileWriteRequest):
-    """Overwrites the file with new content"""
-    full_path = os.path.join(WORKSPACE_PATH, payload.filepath)
+def write_file(payload: FileWriteRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    full_path = os.path.join(workspace, payload.filepath)
     
-    # Security: Ensure path is within workspace
-    if not os.path.commonpath([WORKSPACE_PATH, full_path]).startswith(WORKSPACE_PATH):
+    if not os.path.commonpath([workspace, full_path]).startswith(workspace):
         raise HTTPException(status_code=403, detail="Access denied")
-        
     try:
-        # Ensure directory exists (in case creating a new file)
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(payload.content)
-            
-        return {"status": "success", "message": "File saved"}
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/delete")
+def delete_item(payload: FileDeleteRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    full_path = os.path.join(workspace, payload.filepath)
+    
+    if not os.path.commonpath([workspace, full_path]).startswith(workspace):
+        raise HTTPException(status_code=403, detail="Access denied")
+    try:
+        if os.path.isdir(full_path): shutil.rmtree(full_path)
+        else: os.remove(full_path)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-class PushRequest(BaseModel):
-    commit_message: str
-    github_token: str
-    username: str
+@app.post("/rename")
+def rename_item(payload: FileRenameRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    old_full = os.path.join(workspace, payload.old_path)
+    new_full = os.path.join(workspace, payload.new_path)
+
+    if not os.path.commonpath([workspace, old_full]).startswith(workspace):
+        raise HTTPException(status_code=403, detail="Access denied")
+    try:
+        os.makedirs(os.path.dirname(new_full), exist_ok=True)
+        os.rename(old_full, new_full)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/push")
-def push_changes(payload: PushRequest):
-    """Commits all changes and pushes to GitHub"""
+def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    creds = get_credentials(x_session_id)
+    
+    if not creds:
+        raise HTTPException(status_code=401, detail="No credentials found.")
+
     try:
-        repo = git.Repo(WORKSPACE_PATH)
+        repo = git.Repo(workspace)
+        repo.config_writer().set_value("user", "name", creds['username']).release()
+        repo.config_writer().set_value("user", "email", f"{creds['username']}@users.noreply.github.com").release()
         
-        # 1. Configure Git User
-        repo.config_writer().set_value("user", "name", payload.username).release()
-        repo.config_writer().set_value("user", "email", f"{payload.username}@users.noreply.github.com").release()
-        
-        # 2. Add all changes
         repo.git.add(A=True)
-        
-        # 3. Commit
         if not repo.is_dirty(untracked_files=True):
             return {"status": "success", "message": "No changes to push"}
             
         repo.index.commit(payload.commit_message)
         
-        # 4. Auth & Push
-        origin_url = repo.remotes.origin.url
-        clean_url = origin_url.replace("https://", "") if origin_url.startswith("https://") else origin_url
-        auth_url = f"https://{payload.username}:{payload.github_token}@{clean_url}"
+        origin = repo.remotes.origin
+        original_url = origin.url
+        auth_url = inject_auth(original_url, creds['username'], creds['token'])
         
-        repo.remotes.origin.set_url(auth_url)
-        print("Pushing to GitHub...")
+        with origin.config_writer() as cw:
+            cw.set("url", auth_url)
+            
         repo.remotes.origin.push()
-        repo.remotes.origin.set_url(origin_url) # Reset for security
         
-        return {"status": "success", "message": "Changes pushed to GitHub!"}
-
+        with origin.config_writer() as cw:
+            cw.set("url", original_url)
+            
+        return {"status": "success", "message": "Pushed successfully!"}
     except Exception as e:
-        print(f"Push Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))        
-
-class CommandRequest(BaseModel):
-    command: str
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/terminal")
-def run_command(payload: CommandRequest):
-    """Executes a shell command in the workspace"""
+def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    os.makedirs(workspace, exist_ok=True)
+    
     try:
-        # Security: In a real app, you would whitelist commands here.
-        # For a Cloud IDE, we allow everything but run it in the workspace dir.
-        
-        # Run the command
         result = subprocess.run(
             payload.command,
             shell=True,
-            cwd=WORKSPACE_PATH,
+            cwd=workspace,
             capture_output=True,
             text=True
         )
-        
-        # Return both Output (stdout) and Errors (stderr)
         return {
             "output": result.stdout,
             "error": result.stderr,
@@ -194,68 +274,36 @@ def run_command(payload: CommandRequest):
     except Exception as e:
         return {"error": str(e), "output": "", "returncode": 1}
 
-# Add to the bottom of backend/app/main.py
-
-class FileDeleteRequest(BaseModel):
-    filepath: str
-
-class FileRenameRequest(BaseModel):
-    old_path: str
-    new_path: str
-
-@app.post("/delete")
-def delete_item(payload: FileDeleteRequest):
-    """Deletes a file or directory"""
-    full_path = os.path.join(WORKSPACE_PATH, payload.filepath)
-    
-    # Security Check
-    if not os.path.commonpath([WORKSPACE_PATH, full_path]).startswith(WORKSPACE_PATH):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    try:
-        if os.path.isdir(full_path):
-            shutil.rmtree(full_path)
-        else:
-            os.remove(full_path)
-        return {"status": "success", "message": "Deleted successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/rename")
-def rename_item(payload: FileRenameRequest):
-    """Renames (or moves) a file"""
-    old_full = os.path.join(WORKSPACE_PATH, payload.old_path)
-    new_full = os.path.join(WORKSPACE_PATH, payload.new_path)
-
-    # Security Checks
-    if not os.path.commonpath([WORKSPACE_PATH, old_full]).startswith(WORKSPACE_PATH):
-        raise HTTPException(status_code=403, detail="Access denied")
-    if not os.path.commonpath([WORKSPACE_PATH, new_full]).startswith(WORKSPACE_PATH):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    if not os.path.exists(old_full):
-        raise HTTPException(status_code=404, detail="Source not found")
-    
-    if os.path.exists(new_full):
-        raise HTTPException(status_code=400, detail="Destination already exists")
-
-    try:
-        # Create parent directory if moving to a new folder
-        os.makedirs(os.path.dirname(new_full), exist_ok=True)
-        os.rename(old_full, new_full)
-        return {"status": "success", "message": "Renamed successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/download")
-def download_workspace():
-    """Zips the workspace and returns it"""
+def download_workspace(x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
     try:
-        zip_path = "/tmp/clouide_workspace"
-        shutil.make_archive(zip_path, 'zip', WORKSPACE_PATH)
+        zip_path = f"/tmp/workspace_{x_session_id}"
+        shutil.make_archive(zip_path, 'zip', workspace)
         return FileResponse(f"{zip_path}.zip", filename="workspace.zip", media_type="application/zip")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ----------------- HOST FRONTEND (MUST BE LAST) -----------------
+
+if os.path.exists("../frontend/dist/assets"):
+    app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
+
+@app.get("/")
+async def serve_root():
+    index_path = "../frontend/dist/index.html"
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"status": "error", "message": "Frontend not built"}
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    file_path = f"../frontend/dist/{full_path}"
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    index_path = "../frontend/dist/index.html"
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+        
+    return {"status": "error", "message": "Frontend not built"}
