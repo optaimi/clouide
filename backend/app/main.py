@@ -1,6 +1,5 @@
 # backend/app/main.py
-# (Previous imports remain same, just adding new model)
-from fastapi import FastAPI, HTTPException, Header, Query
+from fastapi import FastAPI, HTTPException, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,15 +10,27 @@ import subprocess
 import shutil
 import os
 import json
+import asyncio
 
 app = FastAPI()
 
-# ... (Middleware and Helper Functions remain the same) ...
+# --- Middleware ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Helper Functions ---
 # Base directory for all users
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 
 def get_workspace_path(session_id: str):
     if not session_id or len(session_id) < 5: 
+        # Note: In WebSockets this raises an error that needs catching, 
+        # but for HTTP endpoints it returns 400.
         raise HTTPException(status_code=400, detail="Invalid Session ID")
     return os.path.join(BASE_DIR, session_id, "repo")
 
@@ -46,7 +57,7 @@ def inject_auth(url: str, username: str, token: str):
 # --- Request Models ---
 
 class InitRequest(BaseModel):
-    project_name: Optional[str] = "my-project"  # Added this model
+    project_name: Optional[str] = "my-project"
 
 class CloneRequest(BaseModel):
     url: str
@@ -81,7 +92,6 @@ class CommandRequest(BaseModel):
 def health_check():
     return {"status": "ok", "service": "Clouide Multi-Tenant"}
 
-# ... (Login, Logout, Clone endpoints remain the same) ...
 @app.post("/login")
 def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
     try:
@@ -109,6 +119,7 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         if os.path.exists(workspace):
             shutil.rmtree(workspace)
         os.makedirs(workspace, exist_ok=True)
+        # Ensure directory is empty for git clone
         shutil.rmtree(workspace) 
 
         clone_url = payload.url
@@ -124,7 +135,6 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         print(f"Clone Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- UPDATED INIT ENDPOINT ---
 @app.post("/init")
 def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
@@ -147,9 +157,7 @@ def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = He
         return {"status": "success", "message": f"Workspace '{project_name}' initialized"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-# -----------------------------
 
-# ... (Rest of the endpoints: files, read, write, delete, rename, push, terminal, download, serve_root - remain the same as previous uploads) ...
 @app.get("/files")
 def list_files(x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
@@ -263,6 +271,55 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- NEW: WebSocket Terminal Endpoint ---
+@app.websocket("/terminal/ws/{session_id}")
+async def terminal_websocket(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    
+    try:
+        workspace = get_workspace_path(session_id)
+        if not os.path.exists(workspace):
+            await websocket.send_text("Error: Workspace not found. Please initialize a project.")
+            await websocket.close()
+            return
+            
+        while True:
+            # 1. Receive command from client
+            command = await websocket.receive_text()
+            
+            # 2. Execute command asynchronously
+            # This prevents blocking the entire API server while the command runs
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=workspace
+            )
+            
+            # 3. Stream output (stdout and stderr)
+            async def stream_output(stream):
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    await websocket.send_text(line.decode())
+
+            # Gather output from both streams
+            await asyncio.gather(
+                stream_output(process.stdout),
+                stream_output(process.stderr)
+            )
+            
+            # Wait for process to finish
+            await process.wait()
+            
+    except WebSocketDisconnect:
+        print(f"Session {session_id} disconnected")
+    except Exception as e:
+        await websocket.send_text(f"System Error: {str(e)}")
+        # Don't close immediately on command error, allow retry
+
+# --- Legacy HTTP Terminal Endpoint (Optional, can be kept as fallback) ---
 @app.post("/terminal")
 def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
@@ -298,9 +355,11 @@ def download_workspace(x_session_id: Optional[str] = Header(None), session_id: O
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Serve static assets
 if os.path.exists("/frontend/dist/assets"):
     app.mount("/assets", StaticFiles(directory="/frontend/dist/assets"), name="assets")
 
+# Serve Frontend (SPA Catch-all)
 @app.get("/")
 async def serve_root():
     index_path = "/frontend/dist/index.html"
