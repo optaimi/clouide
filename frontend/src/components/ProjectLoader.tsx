@@ -45,9 +45,23 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
       await api.post('/clone', { url: repoUrl });
       onProjectLoaded();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to clone repository');
-      setIsLoading(false);
+    console.error(err);
+    
+    // Get the raw error from backend
+    let rawMsg = err.response?.data?.detail || 'Failed to clone repository';
+    
+    // Translate Git gibberish to human language
+    if (rawMsg.includes('exit code(128)') || rawMsg.includes('could not read Username')) {
+      rawMsg = "Access Denied: This repository is private or does not exist. Please login.";
+    } else if (rawMsg.includes('Authentication failed')) {
+      rawMsg = "Authentication failed. Please check your token.";
+    } else if (rawMsg.includes('already exists')) {
+      rawMsg = "A project is already loaded. Please reset first.";
     }
+
+    setError(rawMsg);
+    setIsLoading(false);
+  }
   };
 
   // 3. Handle Login
