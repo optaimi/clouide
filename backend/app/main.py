@@ -298,12 +298,12 @@ def download_workspace(x_session_id: Optional[str] = Header(None), session_id: O
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-if os.path.exists("../frontend/dist/assets"):
-    app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
+if os.path.exists("/frontend/dist/assets"):
+    app.mount("/assets", StaticFiles(directory="/frontend/dist/assets"), name="assets")
 
 @app.get("/")
 async def serve_root():
-    index_path = "../frontend/dist/index.html"
+    index_path = "/frontend/dist/index.html"
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"status": "error", "message": "Frontend not built"}
