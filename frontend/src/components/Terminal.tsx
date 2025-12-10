@@ -14,7 +14,7 @@ interface LogEntry {
 
 const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
   const [history, setHistory] = useState<LogEntry[]>([
-    { type: 'system', content: 'Clouide Terminal v2.0 (WebSocket)' },
+    { type: 'system', content: 'Clouide Terminal v1.1' }, // Updated Version Label
     { type: 'system', content: 'Initializing connection...' }
   ]);
   const [input, setInput] = useState('');
@@ -27,9 +27,19 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
   // 1. Establish WebSocket Connection
   useEffect(() => {
     const sessionId = localStorage.getItem('clouide_session_id') || 'demo';
-    // Note: In production, use wss:// and proper hostname
-    const wsUrl = `ws://127.0.0.1:8000/terminal/ws/${sessionId}`;
     
+    // --- DYNAMIC URL FIX ---
+    // This automatically grabs the IP/Domain and Port from your browser bar
+    // so it works on localhost, remote VMs, or production domains.
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname;
+    const port = window.location.port ? `:${window.location.port}` : '';
+    
+    const wsUrl = `${protocol}//${host}${port}/terminal/ws/${sessionId}`;
+    // -----------------------
+    
+    console.log("Connecting to Terminal at:", wsUrl); // Debugging log
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -40,10 +50,9 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
 
     ws.onmessage = (event) => {
       const data = event.data;
-      // Append incoming streaming data to the last output if possible, 
-      // or create new entry
       setHistory(prev => {
         const last = prev[prev.length - 1];
+        // Append streaming text to the last output if it's an output type
         if (last && last.type === 'output') {
           return [
             ...prev.slice(0, -1),
@@ -65,16 +74,16 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
     };
 
     return () => {
-      ws.close();
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
     };
   }, []);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, isOpen]);
 
-  // Focus input on open
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
@@ -86,16 +95,13 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
     const cmd = input;
     setInput('');
 
-    // Local client-side commands
     if (cmd === 'clear') {
       setHistory([]);
       return;
     }
 
-    // Display command immediately
     setHistory(prev => [...prev, { type: 'command', content: cmd }]);
 
-    // Send to Backend via WebSocket
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(cmd);
     } else {
@@ -113,7 +119,6 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
           <span className="text-ide-text text-xs flex items-center gap-2 uppercase tracking-wider font-bold">
             <TerminalSquare size={14} /> Terminal
           </span>
-          {/* Connection Status Indicator */}
           <div className="flex items-center gap-1.5 text-[10px]">
             {isConnected ? (
               <span className="text-green-500 flex items-center gap-1"><Wifi size={10}/> Online</span>
