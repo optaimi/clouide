@@ -28,7 +28,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
   const handleNewProject = async () => {
     setIsLoading(true);
     try {
-      await axios.post('/init');
+      await api.post('/init');
       onProjectLoaded();
     } catch (err: any) {
       setError("Failed to initialize workspace");
@@ -42,7 +42,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
     setIsLoading(true);
     setError(null);
     try {
-      await axios.post('/clone', { url: repoUrl });
+      await api.post('/clone', { url: repoUrl });
       onProjectLoaded();
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to clone repository');
@@ -56,7 +56,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
     setIsLoading(true);
     setError(null);
     try {
-      await axios.post('/login', { username, token });
+      await api.post('/login', { username, token });
       setSuccessMsg("Credentials saved! You can now clone private repos.");
       setTimeout(() => {
         setSuccessMsg(null);
