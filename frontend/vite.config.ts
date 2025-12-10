@@ -20,7 +20,7 @@ export default defineConfig({
   server: {
     proxy: {
         '/clone': 'http://127.0.0.1:8000',
-        '/init': 'http://127.0.0.1:8000', // <--- ADD THIS
+        '/init': 'http://127.0.0.1:8000', 
         '/files': 'http://127.0.0.1:8000',
         '/read': 'http://127.0.0.1:8000',
         '/write': 'http://127.0.0.1:8000',

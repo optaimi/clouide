@@ -1,4 +1,5 @@
 # backend/app/main.py
+# (Previous imports remain same, just adding new model)
 from fastapi import FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,28 +14,16 @@ import json
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# ... (Middleware and Helper Functions remain the same) ...
 # Base directory for all users
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 
-# --- Helper Functions ---
-
 def get_workspace_path(session_id: str):
-    """Generates the isolated path for a specific user session"""
     if not session_id or len(session_id) < 5: 
         raise HTTPException(status_code=400, detail="Invalid Session ID")
-    # Path: ~/clouide_workspaces/{session_id}/repo
     return os.path.join(BASE_DIR, session_id, "repo")
 
 def get_config_path(session_id: str):
-    """Path to store the user's github token"""
     return os.path.join(BASE_DIR, session_id, "config.json")
 
 def save_credentials(session_id: str, username: str, token: str):
@@ -51,11 +40,13 @@ def get_credentials(session_id: str):
     return None
 
 def inject_auth(url: str, username: str, token: str):
-    """Injects credentials into a URL for cloning/pushing"""
     clean_url = url.replace("https://", "") if url.startswith("https://") else url
     return f"https://{username}:{token}@{clean_url}"
 
 # --- Request Models ---
+
+class InitRequest(BaseModel):
+    project_name: Optional[str] = "my-project"  # Added this model
 
 class CloneRequest(BaseModel):
     url: str
@@ -90,9 +81,9 @@ class CommandRequest(BaseModel):
 def health_check():
     return {"status": "ok", "service": "Clouide Multi-Tenant"}
 
+# ... (Login, Logout, Clone endpoints remain the same) ...
 @app.post("/login")
 def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
-    """Saves credentials to the user's session JSON (Isolated)"""
     try:
         save_credentials(x_session_id, payload.username, payload.token)
         return {"status": "success", "message": "Credentials saved for this session"}
@@ -101,7 +92,6 @@ def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
 
 @app.post("/logout")
 def logout_git(x_session_id: str = Header(...)):
-    """Deletes the user's session config"""
     try:
         config_path = get_config_path(x_session_id)
         if os.path.exists(config_path):
@@ -119,10 +109,9 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         if os.path.exists(workspace):
             shutil.rmtree(workspace)
         os.makedirs(workspace, exist_ok=True)
-        shutil.rmtree(workspace) # Ensure empty for clone
+        shutil.rmtree(workspace) 
 
         clone_url = payload.url
-        # If we have credentials, inject them automatically
         if creds:
             clone_url = inject_auth(payload.url, creds['username'], creds['token'])
             print(f"Cloning with auth for user {creds['username']}...")
@@ -135,17 +124,32 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         print(f"Clone Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- UPDATED INIT ENDPOINT ---
 @app.post("/init")
-def init_workspace(x_session_id: str = Header(...)):
+def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
+    project_name = payload.project_name if payload else "my-project"
+    
     try:
+        # 1. Clear existing
         if os.path.exists(workspace):
             shutil.rmtree(workspace)
         os.makedirs(workspace, exist_ok=True)
-        return {"status": "success", "message": "Workspace initialized"}
+        
+        # 2. Initialize Git
+        repo = git.Repo.init(workspace)
+        
+        # 3. Create README.md
+        readme_path = os.path.join(workspace, "README.md")
+        with open(readme_path, "w") as f:
+            f.write(f"# {project_name}\n\nInitialized by Clouide.")
+            
+        return {"status": "success", "message": f"Workspace '{project_name}' initialized"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+# -----------------------------
 
+# ... (Rest of the endpoints: files, read, write, delete, rename, push, terminal, download, serve_root - remain the same as previous uploads) ...
 @app.get("/files")
 def list_files(x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
@@ -282,7 +286,6 @@ def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
 
 @app.get("/download")
 def download_workspace(x_session_id: Optional[str] = Header(None), session_id: Optional[str] = Query(None)):
-    """Zips the workspace and returns it"""
     target_session = x_session_id or session_id
     if not target_session:
         raise HTTPException(status_code=400, detail="Session ID required")
@@ -295,7 +298,6 @@ def download_workspace(x_session_id: Optional[str] = Header(None), session_id: O
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ----------------- HOST FRONTEND (MUST BE LAST) -----------------
 if os.path.exists("../frontend/dist/assets"):
     app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
 

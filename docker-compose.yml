@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Optional: Persist workspaces on your host machine so they aren't lost when container stops
+      # Maps local ./workspaces folder to the container's workspace area
+      - ./workspaces:/home/coder/clouide_workspaces
+    environment:
+      - PYTHONUNBUFFERED=1

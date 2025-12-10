@@ -9,10 +9,13 @@ interface ProjectLoaderProps {
 }
 
 const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
-  const [view, setView] = useState<'menu' | 'clone' | 'login'>('menu');
+  const [view, setView] = useState<'menu' | 'new_project' | 'clone' | 'login'>('menu');
   
   // Clone State
   const [repoUrl, setRepoUrl] = useState('');
+  
+  // New Project State
+  const [projectName, setProjectName] = useState('');
   
   // Login State
   const [username, setUsername] = useState('');
@@ -27,8 +30,16 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
   // 1. Handle New Project
   const handleNewProject = async () => {
     setIsLoading(true);
+    // Generate default name if empty: session_id + timestamp
+    let finalName = projectName.trim();
+    if (!finalName) {
+      const sessionId = localStorage.getItem('clouide_session_id') || 'unknown';
+      finalName = `project-${sessionId.substring(0, 5)}-${Date.now()}`;
+    }
+
     try {
-      await api.post('/init');
+      // Send the project name to backend to initialize README and Git
+      await api.post('/init', { project_name: finalName });
       onProjectLoaded();
     } catch (err: any) {
       setError("Failed to initialize workspace");
@@ -45,23 +56,20 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
       await api.post('/clone', { url: repoUrl });
       onProjectLoaded();
     } catch (err: any) {
-    console.error(err);
-    
-    // Get the raw error from backend
-    let rawMsg = err.response?.data?.detail || 'Failed to clone repository';
-    
-    // Translate Git gibberish to human language
-    if (rawMsg.includes('exit code(128)') || rawMsg.includes('could not read Username')) {
-      rawMsg = "Access Denied: This repository is private or does not exist. Please login.";
-    } else if (rawMsg.includes('Authentication failed')) {
-      rawMsg = "Authentication failed. Please check your token.";
-    } else if (rawMsg.includes('already exists')) {
-      rawMsg = "A project is already loaded. Please reset first.";
-    }
+      console.error(err);
+      let rawMsg = err.response?.data?.detail || 'Failed to clone repository';
+      
+      if (rawMsg.includes('exit code(128)') || rawMsg.includes('could not read Username')) {
+        rawMsg = "Access Denied: This repository is private or does not exist. Please login.";
+      } else if (rawMsg.includes('Authentication failed')) {
+        rawMsg = "Authentication failed. Please check your token.";
+      } else if (rawMsg.includes('already exists')) {
+        rawMsg = "A project is already loaded. Please reset first.";
+      }
 
-    setError(rawMsg);
-    setIsLoading(false);
-  }
+      setError(rawMsg);
+      setIsLoading(false);
+    }
   };
 
   // 3. Handle Login
@@ -74,7 +82,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
       setSuccessMsg("Credentials saved! You can now clone private repos.");
       setTimeout(() => {
         setSuccessMsg(null);
-        setView('clone'); // Go back to clone screen
+        setView('clone');
       }, 1500);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Login failed');
@@ -85,11 +93,9 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
   return (
     <div className="flex h-screen w-screen bg-ide-bg text-ide-text transition-colors duration-200 flex-col">
-      {/* Main Content Area */}
       <div className="flex-1 flex items-center justify-center overflow-y-auto">
         <div className="w-full max-w-2xl p-8">
           
-          {/* Header */}
           <div className="flex flex-col items-center mb-12">
             <div className="p-4 bg-ide-accent/10 rounded-full mb-4">
               <Cloud size={48} className="text-ide-accent" />
@@ -101,8 +107,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
           {view === 'menu' && (
             <div className="grid grid-cols-2 gap-6">
               <button
-                onClick={handleNewProject}
-                disabled={isLoading}
+                onClick={() => setView('new_project')}
                 className="group relative p-8 bg-ide-sidebar hover:bg-ide-activity/50 border border-ide-border rounded-xl transition-all hover:border-ide-accent text-left"
               >
                 <div className="p-4 bg-ide-activity w-fit rounded-lg mb-4 group-hover:bg-ide-accent/20 transition-colors">
@@ -110,11 +115,6 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                 </div>
                 <h3 className="text-xl font-bold text-ide-text mb-2">New Project</h3>
                 <p className="text-sm text-ide-dim">Start with an empty workspace.</p>
-                {isLoading && (
-                  <div className="absolute inset-0 bg-ide-sidebar/80 flex items-center justify-center rounded-xl">
-                    <Loader2 className="animate-spin text-ide-accent" />
-                  </div>
-                )}
               </button>
 
               <button
@@ -127,6 +127,47 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                 <h3 className="text-xl font-bold text-ide-text mb-2">Open Repository</h3>
                 <p className="text-sm text-ide-dim">Clone from GitHub or URL.</p>
               </button>
+            </div>
+          )}
+
+          {view === 'new_project' && (
+            <div className="max-w-md mx-auto bg-ide-sidebar p-8 rounded-xl border border-ide-border shadow-2xl relative">
+              <button onClick={() => setView('menu')} className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text">
+                <ArrowLeft size={20} />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="p-3 bg-ide-accent/10 rounded-full w-fit mx-auto mb-4">
+                  <FilePlus size={32} className="text-ide-accent" />
+                </div>
+                <h2 className="text-xl font-bold text-ide-text">Setup New Project</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">Project Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="my-awesome-project"
+                    className="w-full px-4 py-3 bg-ide-bg border border-ide-border rounded focus:outline-none focus:border-ide-accent text-ide-text placeholder-ide-dim/50"
+                  />
+                  <p className="text-[10px] text-ide-dim mt-1">
+                    Leave blank to use default: session-id + timestamp
+                  </p>
+                </div>
+
+                {error && <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>}
+
+                <button
+                  onClick={handleNewProject}
+                  disabled={isLoading}
+                  className="w-full py-3 bg-ide-accent hover:bg-ide-accent/80 disabled:opacity-50 text-white font-medium rounded flex items-center justify-center gap-2"
+                >
+                  {isLoading ? <><Loader2 size={18} className="animate-spin" /> Creating...</> : 'Create Project'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -152,7 +193,6 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                   className="w-full px-4 py-3 bg-ide-bg border border-ide-border rounded focus:outline-none focus:border-[#a174ff] text-ide-text placeholder-ide-dim/50"
                 />
 
-                {/* Private Repo Link */}
                 <div className="flex justify-end">
                   <button 
                     onClick={() => setView('login')}
@@ -225,7 +265,6 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
         </div>
       </div>
 
-      {/* Terminal Toggle Button (Floating) */}
       <div className="absolute bottom-4 right-4 z-50">
         <button 
           onClick={() => setIsTerminalOpen(!isTerminalOpen)}
@@ -236,7 +275,6 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
         </button>
       </div>
 
-      {/* Terminal Panel */}
       <div 
         style={{ height: isTerminalOpen ? '300px' : '0px' }}
         className="flex-shrink-0 bg-ide-bg overflow-hidden border-t border-ide-border transition-[height] duration-300 ease-in-out"

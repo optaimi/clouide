@@ -15,7 +15,7 @@ interface LogEntry {
 
 const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
   const [history, setHistory] = useState<LogEntry[]>([
-    { type: 'output', content: 'Clouide Terminal v1.0' }, // <--- Fixed Branding
+    { type: 'output', content: 'Clouide Terminal v1.0' },
     { type: 'output', content: 'Connected to workspace. Type "help" for info.' }
   ]);
   const [input, setInput] = useState('');
@@ -43,6 +43,25 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
 
     setHistory(prev => [...prev, { type: 'command', content: cmd }]);
 
+    // --- INTERCEPT HELP COMMAND ---
+    if (cmd.trim().toLowerCase() === 'help') {
+      const helpMessage = `
+  Clouide Help:
+  -------------
+  git init      : Initialize a new repository
+  git status    : Check workspace status
+  git add .     : Stage all changes
+  git commit -m "msg" : Commit changes
+  ls -la        : List files
+  clear         : Clear terminal
+  
+  * Note: This terminal executes standard Linux commands on the server.
+      `;
+      setHistory(prev => [...prev, { type: 'output', content: helpMessage }]);
+      setLoading(false);
+      return;
+    }
+
     if (cmd === 'clear') {
       setHistory([]);
       setLoading(false);
@@ -66,7 +85,6 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    // Updated colors to use theme variables (bg-ide-bg, border-ide-border, etc.)
     <div className="h-full bg-ide-bg border-t border-ide-border flex flex-col font-mono text-sm">
       {/* Header */}
       <div className="flex justify-between items-center px-4 py-2 bg-ide-sidebar border-b border-ide-border">
