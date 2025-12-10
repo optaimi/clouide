@@ -1,9 +1,10 @@
+# backend/app/main.py
 from fastapi import FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional  # <--- THIS WAS MISSING
+from typing import Optional
 import git
 import subprocess
 import shutil
@@ -20,15 +21,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Base directory where all user workspaces live
+# Base directory for all users
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 
 # --- Helper Functions ---
 
 def get_workspace_path(session_id: str):
-    """Generates a private path for this specific user session"""
-    if not session_id or len(session_id) < 5:
+    """Generates the isolated path for a specific user session"""
+    if not session_id or len(session_id) < 5: 
         raise HTTPException(status_code=400, detail="Invalid Session ID")
+    # Path: ~/clouide_workspaces/{session_id}/repo
     return os.path.join(BASE_DIR, session_id, "repo")
 
 def get_config_path(session_id: str):
@@ -49,10 +51,11 @@ def get_credentials(session_id: str):
     return None
 
 def inject_auth(url: str, username: str, token: str):
+    """Injects credentials into a URL for cloning/pushing"""
     clean_url = url.replace("https://", "") if url.startswith("https://") else url
     return f"https://{username}:{token}@{clean_url}"
 
-# --- Models ---
+# --- Request Models ---
 
 class CloneRequest(BaseModel):
     url: str
@@ -89,14 +92,16 @@ def health_check():
 
 @app.post("/login")
 def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
+    """Saves credentials to the user's session JSON (Isolated)"""
     try:
         save_credentials(x_session_id, payload.username, payload.token)
-        return {"status": "success", "message": "Credentials saved"}
+        return {"status": "success", "message": "Credentials saved for this session"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/logout")
 def logout_git(x_session_id: str = Header(...)):
+    """Deletes the user's session config"""
     try:
         config_path = get_config_path(x_session_id)
         if os.path.exists(config_path):
@@ -104,17 +109,6 @@ def logout_git(x_session_id: str = Header(...)):
         return {"status": "success", "message": "Logged out"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-@app.post("/init")
-def init_workspace(x_session_id: str = Header(...)):
-    workspace = get_workspace_path(x_session_id)
-    try:
-        if os.path.exists(workspace):
-            shutil.rmtree(workspace)
-        os.makedirs(workspace, exist_ok=True)
-        return {"status": "success", "message": "Workspace initialized"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/clone")
 def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
@@ -125,9 +119,10 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         if os.path.exists(workspace):
             shutil.rmtree(workspace)
         os.makedirs(workspace, exist_ok=True)
-        shutil.rmtree(workspace) 
+        shutil.rmtree(workspace) # Ensure empty for clone
 
         clone_url = payload.url
+        # If we have credentials, inject them automatically
         if creds:
             clone_url = inject_auth(payload.url, creds['username'], creds['token'])
             print(f"Cloning with auth for user {creds['username']}...")
@@ -138,6 +133,17 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         return {"status": "success"}
     except Exception as e:
         print(f"Clone Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/init")
+def init_workspace(x_session_id: str = Header(...)):
+    workspace = get_workspace_path(x_session_id)
+    try:
+        if os.path.exists(workspace):
+            shutil.rmtree(workspace)
+        os.makedirs(workspace, exist_ok=True)
+        return {"status": "success", "message": "Workspace initialized"}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/files")
@@ -224,7 +230,7 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
     creds = get_credentials(x_session_id)
     
     if not creds:
-        raise HTTPException(status_code=401, detail="No credentials found.")
+        raise HTTPException(status_code=401, detail="No credentials found. Please login first.")
 
     try:
         repo = git.Repo(workspace)
@@ -277,9 +283,7 @@ def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
 @app.get("/download")
 def download_workspace(x_session_id: Optional[str] = Header(None), session_id: Optional[str] = Query(None)):
     """Zips the workspace and returns it"""
-    # Prioritise Header, fall back to Query Param (for browser downloads)
     target_session = x_session_id or session_id
-    
     if not target_session:
         raise HTTPException(status_code=400, detail="Session ID required")
 
@@ -292,7 +296,6 @@ def download_workspace(x_session_id: Optional[str] = Header(None), session_id: O
         raise HTTPException(status_code=500, detail=str(e))
 
 # ----------------- HOST FRONTEND (MUST BE LAST) -----------------
-
 if os.path.exists("../frontend/dist/assets"):
     app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
 
@@ -308,9 +311,7 @@ async def serve_frontend(full_path: str):
     file_path = f"../frontend/dist/{full_path}"
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)
-    
     index_path = "../frontend/dist/index.html"
     if os.path.exists(index_path):
         return FileResponse(index_path)
-        
     return {"status": "error", "message": "Frontend not built"}
