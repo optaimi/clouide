@@ -8,8 +8,11 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Optional: Persist workspaces on your host machine so they aren't lost when container stops
-      # Maps local ./workspaces folder to the container's workspace area
+      # 1. Persist workspaces
       - ./workspaces:/home/coder/clouide_workspaces
+      
+      # 2. MOUNT THE FRONTEND BUILD (This is the fix)
+      # Maps your local 'dist' folder to '/frontend/dist' inside the container
+      - ./frontend/dist:/frontend/dist
     environment:
       - PYTHONUNBUFFERED=1
