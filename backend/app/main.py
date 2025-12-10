@@ -1,9 +1,9 @@
-# backend/app/main.py
-from fastapi import FastAPI, HTTPException, Header, Request, Query
+from fastapi import FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from typing import Optional  # <--- THIS WAS MISSING
 import git
 import subprocess
 import shutil
