@@ -3,29 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nebula Cloud IDE</title>
-    <!-- Tailwind CSS CDN for immediate styling support per guidelines -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              ide: {
-                bg: '#1e1e1e',
-                sidebar: '#252526',
-                activity: '#333333',
-                accent: '#007acc',
-                text: '#cccccc',
-              }
-            }
-          }
-        }
-      }
-    </script>
+    <title>Clouide - Cloud Native IDE</title>
   </head>
-  <body class="bg-gray-900 text-white overflow-hidden">
-    <div id="root"></div>
+  <body class="bg-ide-bg text-ide-text overflow-hidden"> <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
