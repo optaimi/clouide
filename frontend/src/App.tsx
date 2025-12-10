@@ -4,19 +4,28 @@ import ProjectLoader from './components/ProjectLoader';
 import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
 import Terminal from './components/Terminal';
-import { TerminalSquare, Settings, X, Moon, Sun, Cloud } from 'lucide-react'; // Added Cloud icon
+import MenuBar from './components/MenuBar'; // Import MenuBar
+import { TerminalSquare, Settings, X } from 'lucide-react';
 import { applyTheme, getSavedTheme, Theme } from './utils/theme';
 
 const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  
+  // Settings State
+  const [currentTheme, setCurrentTheme] = useState<Theme>('dark');
+  const [editorSettings, setEditorSettings] = useState({
+    fontSize: 14,
+    wordWrap: false,
+    minimap: false,
+  });
+
+  // Terminal State
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<Theme>('dark');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Theme settings
 
-  // Load Theme on Start
   useEffect(() => {
     const saved = getSavedTheme();
     setCurrentTheme(saved);
@@ -28,7 +37,7 @@ const App: React.FC = () => {
     applyTheme(t);
   };
 
-  // Dragging Logic (Same as before)
+  // Dragging Logic
   const startResizing = (mouseDownEvent: React.MouseEvent) => {
     mouseDownEvent.preventDefault();
     setIsDragging(true);
@@ -46,32 +55,32 @@ const App: React.FC = () => {
   };
 
   if (!isLoaded) {
-    return (
-      <>
-        {/* Pass theme handler to loader so it looks right immediately */}
-        <ProjectLoader onProjectLoaded={() => setIsLoaded(true)} />
-        {/* Hidden Settings Button for Landing Page if needed, currently ProjectLoader manages itself */}
-      </>
-    );
+    return <ProjectLoader onProjectLoaded={() => setIsLoaded(true)} />;
   }
 
   return (
     <div className="flex h-screen w-screen bg-ide-bg text-ide-text overflow-hidden flex-col font-sans transition-colors duration-200">
+      
+      {/* Top Menu Bar */}
+      <MenuBar 
+        onReset={() => setIsLoaded(false)} 
+        onDownload={() => window.open('http://127.0.0.1:8000/download', '_blank')}
+        settings={editorSettings}
+        onUpdateSettings={(key, val) => setEditorSettings(prev => ({ ...prev, [key]: val }))}
+      />
+
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
-        <div className="flex flex-col h-full border-r border-ide-border bg-ide-sidebar">
-           {/* Sidebar Header with Settings */}
-           <div className="h-9 flex items-center justify-between px-3 border-b border-ide-border">
-              <span className="font-bold text-xs tracking-wider uppercase text-ide-dim flex items-center gap-2">
-                <Cloud size={14} className="text-ide-accent" /> Clouide
-              </span>
-              <button onClick={() => setIsSettingsOpen(true)} className="text-ide-dim hover:text-ide-text">
-                <Settings size={14} />
-              </button>
-           </div>
-           
+        <div className="flex flex-col h-full border-r border-ide-border bg-ide-sidebar relative">
            <div className="flex-1 overflow-hidden">
              <FileExplorer onFileSelect={setActiveFile} selectedFile={activeFile} />
+           </div>
+           
+           {/* Theme Button (Moved to bottom of sidebar) */}
+           <div className="p-2 border-t border-ide-border">
+             <button onClick={() => setIsSettingsOpen(true)} className="w-full p-2 hover:bg-ide-activity rounded text-ide-dim hover:text-ide-text flex items-center justify-center gap-2 text-xs">
+               <Settings size={14} /> Theme
+             </button>
            </div>
         </div>
         
@@ -87,7 +96,7 @@ const App: React.FC = () => {
               <TerminalSquare size={16} />
             </button>
           </div>
-          <CodeEditor activeFile={activeFile} theme={currentTheme} />
+          <CodeEditor activeFile={activeFile} theme={currentTheme} settings={editorSettings} />
         </div>
       </div>
 
@@ -104,31 +113,28 @@ const App: React.FC = () => {
         <Terminal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
       </div>
 
-      {/* Settings Modal */}
+      {/* Theme Settings Modal */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
           <div className="bg-ide-sidebar border border-ide-border p-6 rounded-lg w-80 shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-bold">Settings</h2>
-              <button onClick={() => setIsSettingsOpen(false)}><X size={18}/></button>
+              <h2 className="font-bold text-ide-text">Theme Settings</h2>
+              <button onClick={() => setIsSettingsOpen(false)} className="text-ide-text"><X size={18}/></button>
             </div>
             
-            <div className="space-y-2">
-              <label className="text-xs uppercase text-ide-dim font-bold">Theme</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['dark', 'light', 'midnight'] as Theme[]).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => handleThemeChange(t)}
-                    className={`
-                      p-2 rounded text-xs border capitalize
-                      ${currentTheme === t ? 'border-ide-accent bg-ide-accent/10 text-ide-accent' : 'border-ide-border hover:bg-ide-activity'}
-                    `}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(['dark', 'light', 'midnight'] as Theme[]).map(t => (
+                <button
+                  key={t}
+                  onClick={() => handleThemeChange(t)}
+                  className={`
+                    p-2 rounded text-xs border capitalize
+                    ${currentTheme === t ? 'border-ide-accent bg-ide-accent/10 text-ide-accent' : 'border-ide-border text-ide-dim hover:bg-ide-activity'}
+                  `}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </div>
         </div>

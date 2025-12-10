@@ -4,14 +4,19 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { Save, Check, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-// 1. Updated Interface: Added 'theme'
+// 1. Updated Interface to accept 'settings'
 interface CodeEditorProps {
   activeFile: string | null;
   theme: string;
+  settings: {
+    fontSize: number;
+    wordWrap: boolean;
+    minimap: boolean;
+  };
 }
 
-// 2. Updated Component Definition: Destructure 'theme'
-const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme }) => {
+// 2. Updated Component Definition to destructure 'settings'
+const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) => {
   const [content, setContent] = useState<string>("// Select a file to view content");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -125,22 +130,27 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme }) => {
 
       <div className="flex-1 relative">
         {loading && <div className="absolute top-0 w-full h-1 bg-ide-accent animate-pulse z-10" />}
+        
+        {/* THIS IS THE EDITOR COMPONENT WITH THE UPDATED OPTIONS */}
         <Editor
           height="100%"
-          // 3. Dynamic Theme Switching:
           theme={theme === 'light' ? 'light' : 'vs-dark'}
           path={activeFile}
           value={content}
           language={language}
           onMount={handleEditorDidMount}
           onChange={(value) => setContent(value || "")}
+          
+          // --- UPDATED OPTIONS BLOCK START ---
           options={{
-            minimap: { enabled: false },
-            fontSize: 14,
+            minimap: { enabled: settings.minimap },      // Uses settings prop
+            fontSize: settings.fontSize,                 // Uses settings prop
+            wordWrap: settings.wordWrap ? 'on' : 'off',  // Uses settings prop
             scrollBeyondLastLine: false,
             automaticLayout: true,
             fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
           }}
+          // --- UPDATED OPTIONS BLOCK END ---
         />
       </div>
     </div>

@@ -1,6 +1,7 @@
 # backend/app/main.py
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import git
 import subprocess
@@ -246,5 +247,15 @@ def rename_item(payload: FileRenameRequest):
         os.makedirs(os.path.dirname(new_full), exist_ok=True)
         os.rename(old_full, new_full)
         return {"status": "success", "message": "Renamed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/download")
+def download_workspace():
+    """Zips the workspace and returns it"""
+    try:
+        zip_path = "/tmp/clouide_workspace"
+        shutil.make_archive(zip_path, 'zip', WORKSPACE_PATH)
+        return FileResponse(f"{zip_path}.zip", filename="workspace.zip", media_type="application/zip")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
