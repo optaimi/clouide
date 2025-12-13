@@ -38,13 +38,14 @@ const App: React.FC = () => {
     applyTheme(saved);
 
     // Check whether a workspace already exists for this session.
-    // If the backend returns 404 (Workspace not initialized), we stay on the Loader.
     const checkSession = async () => {
       try {
+        // If this returns 200, we have files -> Load IDE
         await api.get('/files');
-        setIsLoaded(true); // Session exists, skip loader
+        setIsLoaded(true); 
       } catch (err) {
-        setIsLoaded(false); // Session invalid or empty, show Loader
+        // If this returns 404 (from our backend fix), we show the Project Loader
+        setIsLoaded(false); 
       }
     };
     checkSession();
@@ -78,6 +79,7 @@ const App: React.FC = () => {
     window.addEventListener("mouseup", onMouseUp);
   };
 
+  // If the backend returned 404 on /files, we show the Loader
   if (!isLoaded) {
     return <ProjectLoader onProjectLoaded={() => setIsLoaded(true)} />;
   }
@@ -88,9 +90,9 @@ const App: React.FC = () => {
       {/* Top Menu Bar */}
       <MenuBar 
         onReset={() => setIsLoaded(false)} 
-        onDownload={() => window.open('/download', '_blank')}
-        settings={editorSettings}
+        // Note: Change localhost to your actual domain if deployed remotely
         onUpdateSettings={(key, val) => setEditorSettings(prev => ({ ...prev, [key]: val }))}
+        settings={editorSettings}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -123,7 +125,7 @@ const App: React.FC = () => {
               <TerminalSquare size={16} />
             </button>
           </div>
-          <CodeEditor activeFile={activeFile}QX theme={currentTheme} settings={editorSettings} />
+          <CodeEditor activeFile={activeFile} theme={currentTheme} settings={editorSettings} />
         </div>
       </div>
 
@@ -140,7 +142,7 @@ const App: React.FC = () => {
         style={{ height: isTerminalOpen ? `${terminalHeight}px` : '0px' }}
         className={`flex-shrink-0 bg-ide-bg overflow-hidden border-t border-ide-border ${isDragging ? '' : 'transition-[height] duration-300'}`}
       >
-        {/* UPDATED: Passing currentTheme to the Terminal */}
+        {/* Pass theme prop to Terminal so it updates colors */}
         <Terminal 
             isOpen={isTerminalOpen} 
             onClose={() => setIsTerminalOpen(false)} 
@@ -163,7 +165,7 @@ const App: React.FC = () => {
                   key={t}
                   onClick={() => handleThemeChange(t)}
                   className={`
-                    p-2 rounded text-xs borderQw capitalize
+                    p-2 rounded text-xs border capitalize
                     ${currentTheme === t ? 'border-ide-accent bg-ide-accent/10 text-ide-accent' : 'border-ide-border text-ide-dim hover:bg-ide-activity'}
                   `}
                 >
