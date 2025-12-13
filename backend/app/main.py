@@ -159,8 +159,11 @@ def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = He
 def list_files(x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
     files = []
+    
+    # CHANGE: Return 404 if workspace does not exist. 
+    # This tells the frontend to show the ProjectLoader.
     if not os.path.exists(workspace):
-        return {"files": []}
+        raise HTTPException(status_code=404, detail="Workspace not initialized")
         
     for root, dirs, filenames in os.walk(workspace):
         if ".git" in dirs: dirs.remove(".git")
@@ -274,23 +277,21 @@ def kill_all_terminals(x_session_id: str = Header(...)):
 # --- NEW: PTY Persistent Terminal Endpoint ---
 @app.websocket("/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
-    """
-    Provide an interactive shell using a PTY (Pseudo-Terminal).
-    This allows stateful sessions (export vars) and interactive CLIs.
-    """
     await websocket.accept()
     
     workspace = get_workspace_path(session_id)
     if not os.path.exists(workspace):
-        await websocket.send_text("Error: Workspace not found. Please initialize a project.")
+        await websocket.send_text("Error: Workspace not found. Please initialize a project.\r\n")
         await websocket.close()
         return
 
-    # 1. Create PTY pair
     master_fd, slave_fd = pty.openpty()
 
-    # 2. Spawn the shell process attached to the PTY
-    # We use 'setsid' to create a new session so it behaves like a real shell
+    # CHANGE: Set HOME to the workspace so 'cd' goes to project root
+    # and inherit other environment variables (PATH, etc)
+    env = os.environ.copy()
+    env["HOME"] = workspace
+
     try:
         process = subprocess.Popen(
             ["/bin/bash"],
@@ -298,6 +299,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             stdout=slave_fd,
             stderr=slave_fd,
             cwd=workspace,
+            env=env, # <--- Apply new environment
             preexec_fn=os.setsid, 
             close_fds=True
         )

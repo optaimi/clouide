@@ -4,18 +4,18 @@ import ProjectLoader from './components/ProjectLoader';
 import FileExplorer from './components/FileExplorer';
 import CodeEditor from './components/CodeEditor';
 import Terminal from './components/Terminal';
-import MenuBar from './components/MenuBar'; // Import MenuBar
+import MenuBar from './components/MenuBar';
 import api from './utils/api';
 import { TerminalSquare, Settings, X } from 'lucide-react';
 import { applyTheme, getSavedTheme, Theme } from './utils/theme';
 
 const App: React.FC = () => {
-  // Track whether a workspace has been initialised so we can swap from the loader.
+  // Track whether a workspace has been initialized so we can swap from the loader.
   const [isLoaded, setIsLoaded] = useState(false);
   // The filepath currently being edited in the code pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
 
-  // Editor appearance and behaviour preferences set via the menu bar.
+  // Editor appearance and behavior preferences.
   const [currentTheme, setCurrentTheme] = useState<Theme>('dark');
   const [editorSettings, setEditorSettings] = useState({
     fontSize: 14,
@@ -27,8 +27,9 @@ const App: React.FC = () => {
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
+  
   // Whether the theme picker overlay is visible.
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Theme settings
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     // Apply whichever theme the user last selected when the app loads.
@@ -36,41 +37,43 @@ const App: React.FC = () => {
     setCurrentTheme(saved);
     applyTheme(saved);
 
-    // Check whether a workspace already exists for this session so we can
-    // jump straight into the IDE without showing the project selection screen.
+    // Check whether a workspace already exists for this session.
+    // If the backend returns 404 (Workspace not initialized), we stay on the Loader.
     const checkSession = async () => {
       try {
-        // Try to list files. If successful, it means the session exists and is valid.
         await api.get('/files');
-        setIsLoaded(true); // <--- Skip the Loader screen!
+        setIsLoaded(true); // Session exists, skip loader
       } catch (err) {
-        // Session invalid or empty, show Loader
-        setIsLoaded(false);
+        setIsLoaded(false); // Session invalid or empty, show Loader
       }
     };
     checkSession();
   }, []);
 
   const handleThemeChange = (t: Theme) => {
-    // Update both state and Tailwind data attributes when a theme button is clicked.
     setCurrentTheme(t);
     applyTheme(t);
   };
 
-  // Dragging Logic
+  // Dragging Logic for Terminal Resize
   const startResizing = (mouseDownEvent: React.MouseEvent) => {
-    // Allow the user to drag the terminal height without selecting surrounding text.
     mouseDownEvent.preventDefault();
     setIsDragging(true);
+    
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {
       const newHeight = window.innerHeight - mouseMoveEvent.clientY;
-      if (newHeight > 100 && newHeight < window.innerHeight * 0.8) setTerminalHeight(newHeight);
+      // Limit height between 100px and 80% of screen
+      if (newHeight > 100 && newHeight < window.innerHeight * 0.8) {
+        setTerminalHeight(newHeight);
+      }
     };
+    
     const onMouseUp = () => {
       setIsDragging(false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
+    
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
   };
@@ -85,7 +88,7 @@ const App: React.FC = () => {
       {/* Top Menu Bar */}
       <MenuBar 
         onReset={() => setIsLoaded(false)} 
-        onDownload={() => window.open('http://127.0.0.1:8000/download', '_blank')}
+        onDownload={() => window.open('/download', '_blank')}
         settings={editorSettings}
         onUpdateSettings={(key, val) => setEditorSettings(prev => ({ ...prev, [key]: val }))}
       />
@@ -97,9 +100,12 @@ const App: React.FC = () => {
              <FileExplorer onFileSelect={setActiveFile} selectedFile={activeFile} />
            </div>
            
-           {/* Theme Button (Moved to bottom of sidebar) */}
+           {/* Theme Button (Sidebar Footer) */}
            <div className="p-2 border-t border-ide-border">
-             <button onClick={() => setIsSettingsOpen(true)} className="w-full p-2 hover:bg-ide-activity rounded text-ide-dim hover:text-ide-text flex items-center justify-center gap-2 text-xs">
+             <button 
+                onClick={() => setIsSettingsOpen(true)} 
+                className="w-full p-2 hover:bg-ide-activity rounded text-ide-dim hover:text-ide-text flex items-center justify-center gap-2 text-xs"
+             >
                <Settings size={14} /> Theme
              </button>
            </div>
@@ -117,21 +123,29 @@ const App: React.FC = () => {
               <TerminalSquare size={16} />
             </button>
           </div>
-          <CodeEditor activeFile={activeFile} theme={currentTheme} settings={editorSettings} />
+          <CodeEditor activeFile={activeFile}QX theme={currentTheme} settings={editorSettings} />
         </div>
       </div>
 
-      {/* Terminal Resizer */}
+      {/* Terminal Resizer Handle */}
       {isTerminalOpen && (
-        <div onMouseDown={startResizing} className="h-1 bg-ide-border hover:bg-ide-accent cursor-row-resize w-full flex-shrink-0 z-40" />
+        <div 
+          onMouseDown={startResizing} 
+          className="h-1 bg-ide-border hover:bg-ide-accent cursor-row-resize w-full flex-shrink-0 z-40 transition-colors" 
+        />
       )}
 
-      {/* Terminal */}
+      {/* Terminal Pane */}
       <div 
         style={{ height: isTerminalOpen ? `${terminalHeight}px` : '0px' }}
         className={`flex-shrink-0 bg-ide-bg overflow-hidden border-t border-ide-border ${isDragging ? '' : 'transition-[height] duration-300'}`}
       >
-        <Terminal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
+        {/* UPDATED: Passing currentTheme to the Terminal */}
+        <Terminal 
+            isOpen={isTerminalOpen} 
+            onClose={() => setIsTerminalOpen(false)} 
+            theme={currentTheme}
+        />
       </div>
 
       {/* Theme Settings Modal */}
@@ -149,7 +163,7 @@ const App: React.FC = () => {
                   key={t}
                   onClick={() => handleThemeChange(t)}
                   className={`
-                    p-2 rounded text-xs border capitalize
+                    p-2 rounded text-xs borderQw capitalize
                     ${currentTheme === t ? 'border-ide-accent bg-ide-accent/10 text-ide-accent' : 'border-ide-border text-ide-dim hover:bg-ide-activity'}
                   `}
                 >
