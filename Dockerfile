@@ -18,6 +18,8 @@ RUN mkdir -p /etc/apt/keyrings && \
     apt-get update && \
     apt-get install -y nodejs
 
+ENV TERM=xterm-256color
+
 # 3. Install AI CLI Tools Globally
 # - @google/gemini-cli (Gemini)
 # - opencode-ai (Opencode)

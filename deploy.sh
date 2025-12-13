@@ -27,9 +27,10 @@ git pull origin main || git pull origin master
 # 4. Build Frontend Locally
 echo "📦 Building Frontend..."
 cd "$FRONTEND_DIR"
-if [ ! -d "node_modules" ]; then
-    npm install
-fi
+##if [ ! -d "node_modules" ]; then
+##    npm install
+##fi
+npm install
 npm run build
 
 if [ $? -ne 0 ]; then

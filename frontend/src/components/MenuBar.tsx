@@ -1,6 +1,7 @@
 // frontend/src/components/MenuBar.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Cloud, Download, FilePlus, Settings, Type, WrapText, Map } from 'lucide-react';
+import { Cloud, Download, FilePlus, Settings, Type, WrapText, Map, Skull } from 'lucide-react';
+import api from '../utils/api';
 
 interface MenuBarProps {
   onReset: () => void;
@@ -13,12 +14,10 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }) => {
-  // Track which dropdown is open so only one menu is visible at a time.
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Close any open dropdown if the user clicks outside the menu bar.
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setActiveMenu(null);
@@ -31,10 +30,20 @@ const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }
   const toggleMenu = (menu: string) => setActiveMenu(activeMenu === menu ? null : menu);
 
   const handleDownload = () => {
-    // Pull the stored session ID so the backend knows which workspace to zip.
     const sessionId = localStorage.getItem('clouide_session_id');
     if (sessionId) {
       window.open(`/download?session_id=${sessionId}`, '_blank');
+    }
+  };
+
+  const handleKillTerminals = async () => {
+    if (confirm("Kill all active terminal processes? This will stop any running commands.")) {
+      try {
+        await api.post('/terminals/kill');
+        window.location.reload(); 
+      } catch (err) {
+        console.error("Failed to kill terminals", err);
+      }
     }
   };
 
@@ -98,6 +107,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }
             <button onClick={() => onUpdateSettings('minimap', !settings.minimap)} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-activity flex items-center justify-between transition-colors">
               <div className="flex items-center gap-2"><Map size={12} /> Minimap</div>
               {settings.minimap && <div className="w-2 h-2 rounded-full bg-ide-accent" />}
+            </button>
+
+            <div className="h-px bg-ide-border my-1" />
+            
+            <button onClick={handleKillTerminals} className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors">
+              <Skull size={12} /> Kill Terminals
             </button>
           </div>
         )}
