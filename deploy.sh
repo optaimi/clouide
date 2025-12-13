@@ -1,5 +1,3 @@
-# optaimi/clouide/optaimi-Clouide-d713be7f37a659fecc0a2d2fdf2ed5a879f5e5e9/deploy.sh
-
 #!/bin/bash
 
 # --- Configuration ---
@@ -27,10 +25,12 @@ git pull origin main || git pull origin master
 # 4. Build Frontend Locally
 echo "📦 Building Frontend..."
 cd "$FRONTEND_DIR"
-##if [ ! -d "node_modules" ]; then
-##    npm install
-##fi
+
+# ALWAYS install dependencies to catch new packages like xterm
+echo "   Running npm install..."
 npm install
+
+echo "   Running npm build..."
 npm run build
 
 if [ $? -ne 0 ]; then
@@ -38,11 +38,9 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# 5. FORCE GENERATE CORRECT DOCKER-COMPOSE
+# 5. GENERATE DOCKER-COMPOSE (Clean, no keys)
 echo "🔧 Generating Docker Configuration..."
 cd "$APP_DIR"
-
-# IMPORTANT: We added environment variables for the new CLIs here
 cat > docker-compose.yml <<EOF
 version: '3.8'
 
@@ -54,18 +52,17 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # 1. Persist workspaces
       - ./workspaces:/home/coder/clouide_workspaces
+      
+      # 2. MOUNT THE FRONTEND BUILD
       - ./frontend/dist:/frontend/dist
     environment:
       - PYTHONUNBUFFERED=1
-      # --- API KEYS FOR CLI TOOLS ---
-      # You can replace these with \${ENV_VAR} to pull from your host shell
-      - GEMINI_API_KEY=\${GEMINI_API_KEY}
-      - OPENAI_API_KEY=\${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=\${ANTHROPIC_API_KEY}
+      # Note: API Keys are now set by the user in the terminal session
 EOF
 
-# --- FIX: CREATE AND PERMISSION WORKSPACES ---
+# --- FIX PERMISSIONS ---
 echo "🔒 Fixing Permissions..."
 chmod -R 755 "$FRONTEND_DIR/dist"
 mkdir -p "$APP_DIR/workspaces"
@@ -73,8 +70,8 @@ chmod -R 777 "$APP_DIR/workspaces"
 
 # 7. Launch Docker
 echo "🐳 Launching Docker Container..."
-# Pass current shell env vars to the build context
-docker-compose up --build -d
+# Use --force-recreate to ensure it picks up the new Dockerfile changes
+docker-compose up --build --force-recreate -d
 
 echo "=========================================="
 echo "✅ Deployment Complete! App is live."
