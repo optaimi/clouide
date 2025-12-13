@@ -23,7 +23,10 @@ RUN mkdir -p /etc/apt/keyrings && \
 # - opencode-ai (Opencode)
 # - @openai/codex (Codex)
 # - @anthropic-ai/claude-code (Claude Code)
-RUN npm install -g @google/gemini-cli opencode-ai @openai/codex @anthropic-ai/claude-code
+RUN npm install -g @google/gemini-cli
+RUN npm install -g opencode-ai
+RUN npm install -g @openai/codex
+RUN npm install -g @anthropic-ai/claude-code
 
 # Set working directory
 WORKDIR /app
