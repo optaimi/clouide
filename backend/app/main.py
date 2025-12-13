@@ -160,17 +160,28 @@ def list_files(x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
     files = []
     
-    # FIX 1: Return 404 if workspace doesn't exist so frontend shows ProjectLoader
     if not os.path.exists(workspace):
         raise HTTPException(status_code=404, detail="Workspace not initialized")
-        
+    
+    # Define directories to completely ignore
+    IGNORED_DIRS = {
+        '.git', '.bun', '.cache', '.npm', '.config', '.local', 
+        'node_modules', '__pycache__', 'dist', 'build', 'site-packages'
+    }
+
     for root, dirs, filenames in os.walk(workspace):
-        if ".git" in dirs: dirs.remove(".git")
+        # 1. Modify 'dirs' in-place to prevent os.walk from entering ignored folders
+        # This filters out any folder starting with '.' or in our ignore list
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in IGNORED_DIRS]
+        
         for filename in filenames:
-            if filename.startswith(".git"): continue
+            # 2. Ignore hidden files
+            if filename.startswith('.'): continue
+            
             full_path = os.path.join(root, filename)
             rel_path = os.path.relpath(full_path, workspace)
             files.append(rel_path)
+            
     return {"files": sorted(files)}
 
 @app.post("/read")
