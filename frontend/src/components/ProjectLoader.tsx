@@ -9,18 +9,19 @@ interface ProjectLoaderProps {
 }
 
 const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
+  // Control which section of the wizard is displayed.
   const [view, setView] = useState<'menu' | 'new_project' | 'clone' | 'login'>('menu');
-  
+
   // Clone State
   const [repoUrl, setRepoUrl] = useState('');
-  
+
   // New Project State
   const [projectName, setProjectName] = useState('');
-  
+
   // Login State
   const [username, setUsername] = useState('');
   const [token, setToken] = useState('');
-  
+
   // UI State
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
   // 1. Handle New Project
   const handleNewProject = async () => {
+    // Spin up a fresh repository populated with a basic README file.
     setIsLoading(true);
     // Generate default name if empty: session_id + timestamp
     let finalName = projectName.trim();
@@ -49,6 +51,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
   // 2. Handle Clone
   const handleClone = async () => {
+    // Pull a Git repository into the workspace, interpreting common errors for clarity.
     if (!repoUrl) return;
     setIsLoading(true);
     setError(null);
@@ -58,7 +61,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
     } catch (err: any) {
       console.error(err);
       let rawMsg = err.response?.data?.detail || 'Failed to clone repository';
-      
+
       if (rawMsg.includes('exit code(128)') || rawMsg.includes('could not read Username')) {
         rawMsg = "Access Denied: This repository is private or does not exist. Please login.";
       } else if (rawMsg.includes('Authentication failed')) {
@@ -74,6 +77,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
   // 3. Handle Login
   const handleLogin = async () => {
+    // Save the supplied GitHub credentials for use in later clone and push actions.
     if (!username || !token) return;
     setIsLoading(true);
     setError(null);

@@ -10,10 +10,12 @@ import { TerminalSquare, Settings, X } from 'lucide-react';
 import { applyTheme, getSavedTheme, Theme } from './utils/theme';
 
 const App: React.FC = () => {
+  // Track whether a workspace has been initialised so we can swap from the loader.
   const [isLoaded, setIsLoaded] = useState(false);
+  // The filepath currently being edited in the code pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
-  
-  // Settings State
+
+  // Editor appearance and behaviour preferences set via the menu bar.
   const [currentTheme, setCurrentTheme] = useState<Theme>('dark');
   const [editorSettings, setEditorSettings] = useState({
     fontSize: 14,
@@ -21,18 +23,21 @@ const App: React.FC = () => {
     minimap: false,
   });
 
-  // Terminal State
+  // State for the built-in terminal drawer and its draggable height.
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
+  // Whether the theme picker overlay is visible.
   const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Theme settings
 
   useEffect(() => {
-    // 1. Load Theme
+    // Apply whichever theme the user last selected when the app loads.
     const saved = getSavedTheme();
     setCurrentTheme(saved);
     applyTheme(saved);
-// 2. Check for existing session/files (Persistence Fix)
+
+    // Check whether a workspace already exists for this session so we can
+    // jump straight into the IDE without showing the project selection screen.
     const checkSession = async () => {
       try {
         // Try to list files. If successful, it means the session exists and is valid.
@@ -47,12 +52,14 @@ const App: React.FC = () => {
   }, []);
 
   const handleThemeChange = (t: Theme) => {
+    // Update both state and Tailwind data attributes when a theme button is clicked.
     setCurrentTheme(t);
     applyTheme(t);
   };
 
   // Dragging Logic
   const startResizing = (mouseDownEvent: React.MouseEvent) => {
+    // Allow the user to drag the terminal height without selecting surrounding text.
     mouseDownEvent.preventDefault();
     setIsDragging(true);
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {

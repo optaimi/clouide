@@ -13,13 +13,17 @@ interface LogEntry {
 }
 
 const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
+  // Running log of commands and outputs shown in the panel.
   const [history, setHistory] = useState<LogEntry[]>([
     { type: 'system', content: 'Clouide Terminal v1.1' }, // Updated Version Label
     { type: 'system', content: 'Initializing connection...' }
   ]);
+  // Text currently inside the command input box.
   const [input, setInput] = useState('');
+  // Whether the WebSocket connection to the backend is live.
   const [isConnected, setIsConnected] = useState(false);
-  
+
+  // Refs help us auto-scroll, focus fields, and keep the socket instance.
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -89,6 +93,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   const handleCommand = (e: React.FormEvent) => {
+    // Intercept form submission so we can send the text to the server.
     e.preventDefault();
     if (!input.trim()) return;
 
@@ -96,6 +101,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose }) => {
     setInput('');
 
     if (cmd === 'clear') {
+      // Special client-side command to wipe the output buffer.
       setHistory([]);
       return;
     }

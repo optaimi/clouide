@@ -9,7 +9,9 @@ interface FileExplorerProps {
 }
 
 const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile }) => {
+  // List of file paths returned by the backend.
   const [files, setFiles] = useState<string[]>([]);
+  // Simple flag for showing the spinning refresh icon.
   const [loading, setLoading] = useState(false);
 
   // 1. Fetch Files
@@ -29,6 +31,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
 
   // 2. Create New File
   const handleNewFile = async () => {
+    // Ask the user for a name and then create a blank file on the server.
     const filename = window.prompt("Enter new file name (e.g., src/utils.ts):");
     if (!filename) return;
 
@@ -43,8 +46,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
 
   // 3. Rename File
   const handleRename = async () => {
+    // Rename the selected file, keeping the user focused on the same entry afterwards.
     if (!selectedFile) return;
-    
+
     const newName = window.prompt("Rename file to:", selectedFile);
     if (!newName || newName === selectedFile) return;
 
@@ -59,13 +63,14 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
 
   // 4. Delete File
   const handleDelete = async () => {
+    // Permanently remove the selected file after a quick confirmation prompt.
     if (!selectedFile) return;
     if (!window.confirm(`Are you sure you want to delete '${selectedFile}'?`)) return;
 
     try {
       await api.post('/delete', { filepath: selectedFile });
       await fetchFiles();
-      onFileSelect(""); 
+      onFileSelect("");
     } catch (err: any) {
       alert("Error deleting file: " + (err.response?.data?.detail || err.message));
     }

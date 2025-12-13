@@ -28,22 +28,26 @@ app.add_middleware(
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 
 def get_workspace_path(session_id: str):
-    if not session_id or len(session_id) < 5: 
-        # Note: In WebSockets this raises an error that needs catching, 
+    """Build the path to the user's workspace folder, rejecting obviously invalid IDs."""
+    if not session_id or len(session_id) < 5:
+        # Note: In WebSockets this raises an error that needs catching,
         # but for HTTP endpoints it returns 400.
         raise HTTPException(status_code=400, detail="Invalid Session ID")
     return os.path.join(BASE_DIR, session_id, "repo")
 
 def get_config_path(session_id: str):
+    """Return the path to the per-session config file that stores Git credentials."""
     return os.path.join(BASE_DIR, session_id, "config.json")
 
 def save_credentials(session_id: str, username: str, token: str):
+    """Persist Git credentials for the current browser session so the API can reuse them."""
     config_path = get_config_path(session_id)
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w") as f:
         json.dump({"username": username, "token": token}, f)
 
 def get_credentials(session_id: str):
+    """Load any cached Git credentials; return None when the user has not signed in."""
     config_path = get_config_path(session_id)
     if os.path.exists(config_path):
         with open(config_path, "r") as f:
@@ -51,6 +55,7 @@ def get_credentials(session_id: str):
     return None
 
 def inject_auth(url: str, username: str, token: str):
+    """Insert credentials into a Git URL so private repositories can be fetched."""
     clean_url = url.replace("https://", "") if url.startswith("https://") else url
     return f"https://{username}:{token}@{clean_url}"
 
@@ -90,10 +95,12 @@ class CommandRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
+    """Lightweight endpoint used by probes to confirm the API is reachable."""
     return {"status": "ok", "service": "Clouide Multi-Tenant"}
 
 @app.post("/login")
 def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
+    """Store the supplied GitHub username and token for the active browser session."""
     try:
         save_credentials(x_session_id, payload.username, payload.token)
         return {"status": "success", "message": "Credentials saved for this session"}
@@ -102,6 +109,7 @@ def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
 
 @app.post("/logout")
 def logout_git(x_session_id: str = Header(...)):
+    """Clear any saved credentials for the session so future Git actions are anonymous."""
     try:
         config_path = get_config_path(x_session_id)
         if os.path.exists(config_path):
@@ -112,6 +120,7 @@ def logout_git(x_session_id: str = Header(...)):
 
 @app.post("/clone")
 def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
+    """Clone a Git repository into the user's workspace, inserting auth when required."""
     workspace = get_workspace_path(x_session_id)
     creds = get_credentials(x_session_id)
     
@@ -137,6 +146,7 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
 
 @app.post("/init")
 def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = Header(...)):
+    """Create a brand new Git repository with a simple README for the user."""
     workspace = get_workspace_path(x_session_id)
     project_name = payload.project_name if payload else "my-project"
     
@@ -160,6 +170,7 @@ def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = He
 
 @app.get("/files")
 def list_files(x_session_id: str = Header(...)):
+    """Return a flat list of files inside the user's workspace (excluding Git internals)."""
     workspace = get_workspace_path(x_session_id)
     files = []
     if not os.path.exists(workspace):
@@ -176,6 +187,7 @@ def list_files(x_session_id: str = Header(...)):
 
 @app.post("/read")
 def read_file(payload: FileReadRequest, x_session_id: str = Header(...)):
+    """Load a file's contents as text, protecting against directory traversal attempts."""
     workspace = get_workspace_path(x_session_id)
     full_path = os.path.join(workspace, payload.filepath)
     
@@ -194,6 +206,7 @@ def read_file(payload: FileReadRequest, x_session_id: str = Header(...)):
 
 @app.post("/write")
 def write_file(payload: FileWriteRequest, x_session_id: str = Header(...)):
+    """Write the supplied content into the chosen file, creating folders as needed."""
     workspace = get_workspace_path(x_session_id)
     full_path = os.path.join(workspace, payload.filepath)
     
@@ -209,6 +222,7 @@ def write_file(payload: FileWriteRequest, x_session_id: str = Header(...)):
 
 @app.post("/delete")
 def delete_item(payload: FileDeleteRequest, x_session_id: str = Header(...)):
+    """Delete a file or folder from the workspace after confirming the path is safe."""
     workspace = get_workspace_path(x_session_id)
     full_path = os.path.join(workspace, payload.filepath)
     
@@ -223,6 +237,7 @@ def delete_item(payload: FileDeleteRequest, x_session_id: str = Header(...)):
 
 @app.post("/rename")
 def rename_item(payload: FileRenameRequest, x_session_id: str = Header(...)):
+    """Rename a file or folder, ensuring the destination exists before moving it."""
     workspace = get_workspace_path(x_session_id)
     old_full = os.path.join(workspace, payload.old_path)
     new_full = os.path.join(workspace, payload.new_path)
@@ -238,6 +253,7 @@ def rename_item(payload: FileRenameRequest, x_session_id: str = Header(...)):
 
 @app.post("/push")
 def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
+    """Commit local changes and push them to the original remote using stored credentials."""
     workspace = get_workspace_path(x_session_id)
     creds = get_credentials(x_session_id)
     
@@ -274,6 +290,7 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
 # --- NEW: WebSocket Terminal Endpoint ---
 @app.websocket("/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
+    """Provide an interactive shell by streaming command output over WebSockets."""
     await websocket.accept()
     
     try:
@@ -322,6 +339,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
 # --- Legacy HTTP Terminal Endpoint (Optional, can be kept as fallback) ---
 @app.post("/terminal")
 def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
+    """Legacy HTTP-based terminal endpoint retained for clients that lack WebSocket support."""
     workspace = get_workspace_path(x_session_id)
     os.makedirs(workspace, exist_ok=True)
     
@@ -343,6 +361,7 @@ def run_command(payload: CommandRequest, x_session_id: str = Header(...)):
 
 @app.get("/download")
 def download_workspace(x_session_id: Optional[str] = Header(None), session_id: Optional[str] = Query(None)):
+    """Bundle the user's workspace into a zip so it can be downloaded from the browser."""
     target_session = x_session_id or session_id
     if not target_session:
         raise HTTPException(status_code=400, detail="Session ID required")
@@ -362,6 +381,7 @@ if os.path.exists("/frontend/dist/assets"):
 # Serve Frontend (SPA Catch-all)
 @app.get("/")
 async def serve_root():
+    """Serve the built frontend when available, otherwise report the missing build."""
     index_path = "/frontend/dist/index.html"
     if os.path.exists(index_path):
         return FileResponse(index_path)
@@ -369,6 +389,7 @@ async def serve_root():
 
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
+    """Catch-all route for the single-page app, serving static files when they exist."""
     file_path = f"../frontend/dist/{full_path}"
     if os.path.exists(file_path) and os.path.isfile(file_path):
         return FileResponse(file_path)

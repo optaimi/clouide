@@ -13,10 +13,12 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }) => {
+  // Track which dropdown is open so only one menu is visible at a time.
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Close any open dropdown if the user clicks outside the menu bar.
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setActiveMenu(null);
@@ -29,7 +31,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }
   const toggleMenu = (menu: string) => setActiveMenu(activeMenu === menu ? null : menu);
 
   const handleDownload = () => {
-    // Get ID directly from storage to append to URL
+    // Pull the stored session ID so the backend knows which workspace to zip.
     const sessionId = localStorage.getItem('clouide_session_id');
     if (sessionId) {
       window.open(`/download?session_id=${sessionId}`, '_blank');
