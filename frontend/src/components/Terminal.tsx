@@ -5,12 +5,12 @@ import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import 'xterm/css/xterm.css';
 import { TerminalSquare, X } from 'lucide-react';
+import { Theme } from '../utils/theme'; // Ensure this type exists or use string
 
-// Add 'theme' to props
 interface TerminalProps {
   isOpen: boolean;
   onClose: () => void;
-  theme: 'light' | 'dark' | 'midnight';
+  theme: Theme; // Accepting the theme prop
 }
 
 const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
@@ -20,7 +20,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeObserver = useRef<ResizeObserver | null>(null);
 
-  // Define themes
+  // Define the colors for your themes here
   const themes = {
     dark: { background: '#1e1e1e', foreground: '#cccccc', cursor: '#cccccc' },
     light: { background: '#ffffff', foreground: '#333333', cursor: '#333333' },
@@ -30,13 +30,13 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
   useEffect(() => {
     if (!isOpen || !terminalRef.current) return;
 
-    // 1. Initialize xterm.js if not already done
+    // 1. Initialize xterm.js (Singleton pattern for this component)
     if (!xtermRef.current) {
       const term = new XTerm({
         cursorBlink: true,
         fontSize: 14,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-        theme: themes[theme], // Set initial theme
+        theme: themes[theme], // Apply initial theme
         allowProposedApi: true,
       });
 
@@ -61,59 +61,55 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // Clear screen and fit immediately on connect
-        term.write('\x1b[2J\x1b[3J\x1b[H'); 
         term.writeln('\x1b[32mWelcome to Clouide Terminal\x1b[0m');
-        fitAddon.fit();
+        // Small delay to ensure container is rendered before fitting
+        setTimeout(() => fitAddon.fit(), 50);
         term.focus();
       };
 
       ws.onmessage = (event) => term.write(event.data);
+      ws.onclose = () => term.writeln('\r\n\x1b[33mDisconnected.\x1b[0m');
       
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(data);
       });
 
-      // 3. Setup Resize Observer for the container
-      // This ensures the terminal resizes when the user drags the pane
+      // 3. Resize Observer (Fixes the resizing issue)
+      // This watches the DIV size and reflows the terminal text automatically
       resizeObserver.current = new ResizeObserver(() => {
         fitAddon.fit();
       });
       resizeObserver.current.observe(terminalRef.current);
     }
 
+    // Cleanup logic
     return () => {
-      // Cleanup happens only on unmount effectively, 
-      // but we want to keep the terminal alive if just hidden/shown usually.
-      // For this simple version, we'll let it reconnect on re-open if fully unmounted.
-      if (!isOpen) {
-         wsRef.current?.close();
-         xtermRef.current?.dispose();
-         resizeObserver.current?.disconnect();
-         xtermRef.current = null;
-      }
+      // We don't dispose xterm on simple re-renders to keep history, 
+      // but strictly speaking in React strict mode you might want to.
+      // For this app, keeping it alive while mounted is fine.
     };
   }, [isOpen]);
 
-  // Handle Theme Changes dynamically
+  // 4. Dynamic Theme Updates
   useEffect(() => {
     if (xtermRef.current) {
       xtermRef.current.options.theme = themes[theme];
     }
   }, [theme]);
 
-  // Handle Resizing when isOpen changes
+  // 5. Force fit on open
   useEffect(() => {
     if (isOpen && fitAddonRef.current) {
-      setTimeout(() => fitAddonRef.current?.fit(), 50);
+      setTimeout(() => fitAddonRef.current?.fit(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, theme]);
 
   if (!isOpen) return null;
 
   return (
-    // Use the theme background for the container to avoid white flashes
+    // We set the background style here too so the padding doesn't flash white/black
     <div className="h-full flex flex-col border-t border-ide-border" style={{ backgroundColor: themes[theme].background }}>
+      {/* Header */}
       <div className="flex justify-between items-center px-4 py-1 bg-ide-sidebar border-b border-ide-border select-none min-h-[30px]">
         <div className="flex items-center gap-2 text-ide-text text-xs font-bold uppercase tracking-wider">
           <TerminalSquare size={14} /> Terminal
@@ -122,6 +118,8 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
           <X size={14} />
         </button>
       </div>
+
+      {/* Terminal Container */}
       <div className="flex-1 overflow-hidden p-1 relative">
         <div ref={terminalRef} className="w-full h-full" />
       </div>
