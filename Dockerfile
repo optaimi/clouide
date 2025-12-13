@@ -1,34 +1,36 @@
-# optaimi/clouide/optaimi-Clouide-d713be7f37a659fecc0a2d2fdf2ed5a879f5e5e9/Dockerfile
-
-# Use a lightweight Python image
+# Dockerfile
 FROM python:3.11-slim
 
-# 1. Install system dependencies (Git + curl/gnupg for Node setup)
-RUN apt-get update && apt-get install -y \
+# Set environment to prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TERM=xterm-256color
+
+# 1. Install System Deps & Node.js 20 in a SINGLE layer to save space
+# We also clean up apt cache immediately to keep the layer small.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     git \
     curl \
     gnupg \
     build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# 2. Install Node.js 20 (Required for these CLIs)
-RUN mkdir -p /etc/apt/keyrings && \
+    ca-certificates && \
+    # Install Node.js
+    mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install -y nodejs
+    apt-get install -y nodejs && \
+    # Clean up system garbage
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-ENV TERM=xterm-256color
-
-# 3. Install AI CLI Tools Globally
-# - @google/gemini-cli (Gemini)
-# - opencode-ai (Opencode)
-# - @openai/codex (Codex)
-# - @anthropic-ai/claude-code (Claude Code)
-RUN npm install -g @google/gemini-cli
-RUN npm install -g opencode-ai
-RUN npm install -g @openai/codex
-RUN npm install -g @anthropic-ai/claude-code
+# 2. Install AI CLI Tools in a SINGLE layer
+# We use --no-cache to prevent npm from storing huge cache files on disk
+RUN npm install -g --no-cache \
+    @google/gemini-cli \
+    opencode-ai \
+    @openai/codex \
+    @anthropic-ai/claude-code
 
 # Set working directory
 WORKDIR /app
@@ -46,5 +48,4 @@ RUN mkdir -p /home/coder/clouide_workspaces && chown -R coder:coder /home/coder/
 
 USER coder
 
-# Run the backend
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
