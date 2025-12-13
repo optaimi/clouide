@@ -17,15 +17,20 @@ interface CodeEditorProps {
 
 // 2. Updated Component Definition to destructure 'settings'
 const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) => {
+  // Content shown in the editor window.
   const [content, setContent] = useState<string>("// Select a file to view content");
+  // Flags to help us show loading bars and status messages.
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  // Monaco uses this to pick syntax highlighting rules.
   const [language, setLanguage] = useState('typescript');
-  
+
+  // Direct reference to the Monaco editor instance for reading current text.
   const editorRef = useRef<any>(null);
 
   const getLanguageFromFilename = (filename: string) => {
+    // Use common file extensions to set sensible syntax highlighting defaults.
     const ext = filename.split('.').pop()?.toLowerCase();
     switch (ext) {
       case 'js': return 'javascript';
@@ -53,6 +58,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
     setLanguage(getLanguageFromFilename(activeFile));
 
     const loadFile = async () => {
+      // Retrieve the requested file so the editor can display it.
       setLoading(true);
       setStatus('idle');
       try {
@@ -69,15 +75,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
   }, [activeFile]);
 
   const handleSave = async () => {
+    // Push the current editor contents back to the server.
     if (!activeFile || !editorRef.current) return;
 
     setSaving(true);
     setStatus('idle');
     try {
       const currentValue = editorRef.current.getValue();
-      await api.post('/write', { 
-        filepath: activeFile, 
-        content: currentValue 
+      await api.post('/write', {
+        filepath: activeFile,
+        content: currentValue
       });
       setStatus('saved');
       setTimeout(() => setStatus('idle'), 2000);
@@ -90,6 +97,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
   };
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
+    // Remember the editor instance and add a familiar Ctrl/Cmd + S shortcut.
     editorRef.current = editor;
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();

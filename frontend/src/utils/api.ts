@@ -2,6 +2,7 @@
 import axios from 'axios';
 
 // 1. Get or Create Session ID
+// Each browser tab gets its own workspace identifier so files stay isolated.
 const getSessionId = () => {
   let sessionId = localStorage.getItem('clouide_session_id');
   if (!sessionId) {
@@ -12,6 +13,7 @@ const getSessionId = () => {
 };
 
 // 2. Create a pre-configured instance
+// This instance automatically forwards the session header with every request.
 const api = axios.create({
   headers: {
     'x-session-id': getSessionId(),
