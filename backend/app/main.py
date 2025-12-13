@@ -160,8 +160,7 @@ def list_files(x_session_id: str = Header(...)):
     workspace = get_workspace_path(x_session_id)
     files = []
     
-    # CHANGE: Return 404 if workspace does not exist. 
-    # This tells the frontend to show the ProjectLoader.
+    # FIX 1: Return 404 if workspace doesn't exist so frontend shows ProjectLoader
     if not os.path.exists(workspace):
         raise HTTPException(status_code=404, detail="Workspace not initialized")
         
@@ -257,7 +256,7 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- NEW: Kill Terminals Endpoint ---
+# --- Kill Terminals Endpoint ---
 @app.post("/terminals/kill")
 def kill_all_terminals(x_session_id: str = Header(...)):
     """Kill all active PTY processes to free resources."""
@@ -274,9 +273,13 @@ def kill_all_terminals(x_session_id: str = Header(...)):
             
     return {"status": "success", "message": f"Killed {count} terminal processes"}
 
-# --- NEW: PTY Persistent Terminal Endpoint ---
+# --- PTY Persistent Terminal Endpoint ---
 @app.websocket("/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
+    """
+    Provide an interactive shell using a PTY (Pseudo-Terminal).
+    This allows stateful sessions (export vars) and interactive CLIs.
+    """
     await websocket.accept()
     
     workspace = get_workspace_path(session_id)
@@ -285,13 +288,15 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
         await websocket.close()
         return
 
+    # 1. Create PTY pair
     master_fd, slave_fd = pty.openpty()
 
-    # CHANGE: Set HOME to the workspace so 'cd' goes to project root
-    # and inherit other environment variables (PATH, etc)
+    # FIX 2: Set HOME env var so 'cd' works as expected
     env = os.environ.copy()
     env["HOME"] = workspace
 
+    # 2. Spawn the shell process attached to the PTY
+    # We use 'setsid' to create a new session so it behaves like a real shell
     try:
         process = subprocess.Popen(
             ["/bin/bash"],
@@ -299,7 +304,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             stdout=slave_fd,
             stderr=slave_fd,
             cwd=workspace,
-            env=env, # <--- Apply new environment
+            env=env, # <--- Apply environment
             preexec_fn=os.setsid, 
             close_fds=True
         )
@@ -333,13 +338,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                     # If user sends a specific exit command or disconnects
                     if data == '__ping__': continue
                     
-                    # Convert text to bytes and write to PTY
-                    # We add a newline if it's a command submission, 
-                    # but typically the frontend sends raw keystrokes or full lines with \n
-                    if not data.endswith('\n') and not data.endswith('\r'):
-                         data += '\n' # Basic implementation assumes line-mode for now
-                         
-                    await loop.run_in_executor(None, os.write, master_fd, data.encode())
+                    # FIX 3: REMOVED the forced '\n' logic. 
+                    # We now send exactly what xterm sends us.
+                    if data:
+                         await loop.run_in_executor(None, os.write, master_fd, data.encode())
             except Exception:
                 pass
 
