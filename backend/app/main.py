@@ -163,19 +163,21 @@ def list_files(x_session_id: str = Header(...)):
     if not os.path.exists(workspace):
         raise HTTPException(status_code=404, detail="Workspace not initialized")
     
-    # Define directories to completely ignore
+    # 1. EXPANDED IGNORE LIST: Add .bun, .cache, .local, etc.
     IGNORED_DIRS = {
-        '.git', '.bun', '.cache', '.npm', '.config', '.local', 
-        'node_modules', '__pycache__', 'dist', 'build', 'site-packages'
+        '.git', '.bun', '.cache', '.npm', '.config', '.local', '.vscode',
+        'node_modules', '__pycache__', 'dist', 'build', 'site-packages', 'venv', 'env'
     }
 
     for root, dirs, filenames in os.walk(workspace):
-        # 1. Modify 'dirs' in-place to prevent os.walk from entering ignored folders
-        # This filters out any folder starting with '.' or in our ignore list
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in IGNORED_DIRS]
+        # Filter directories in-place so os.walk does not descend into them
+        # We perform a copy of the list to iterate safely while modifying
+        for d in list(dirs):
+            if d.startswith('.') or d in IGNORED_DIRS:
+                dirs.remove(d)
         
         for filename in filenames:
-            # 2. Ignore hidden files
+            # Ignore hidden files (dotfiles)
             if filename.startswith('.'): continue
             
             full_path = os.path.join(root, filename)
