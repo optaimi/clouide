@@ -26,9 +26,32 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
     midnight: { background: '#0f172a', foreground: '#e2e8f0', cursor: '#38bdf8' },
   };
 
+  // Helper to fit and sync with backend
+  const fitTerminal = () => {
+    if (!fitAddonRef.current || !xtermRef.current || !wsRef.current) return;
+    
+    try {
+      fitAddonRef.current.fit();
+      
+      // Grab new dimensions
+      const cols = xtermRef.current.cols;
+      const rows = xtermRef.current.rows;
+
+      // Send resize command to backend if connected
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'resize',
+          cols: cols,
+          rows: rows
+        }));
+      }
+    } catch (e) {
+      console.error("Fit error:", e);
+    }
+  };
+
   useEffect(() => {
-    // Only initialize if the container is present
-    if (!terminalRef.current) return;
+    if (!isOpen || !terminalRef.current) return;
 
     if (!xtermRef.current) {
       const term = new XTerm({
@@ -37,7 +60,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: themes[theme],
         allowProposedApi: true,
-        cols: 120, // Start wider to avoid narrow wrap before fit
+        cols: 120, 
       });
 
       const fitAddon = new FitAddon();
@@ -45,11 +68,11 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
       term.loadAddon(new WebLinksAddon());
 
       term.open(terminalRef.current);
-      // Force an immediate fit
-      try { fitAddon.fit(); } catch (e) {}
-
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
+
+      // Initial fit (local)
+      try { fitAddon.fit(); } catch (e) {}
 
       const sessionId = localStorage.getItem('clouide_session_id') || 'demo';
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -62,8 +85,8 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
 
       ws.onopen = () => {
         term.writeln('\x1b[32mWelcome to Clouide Terminal\x1b[0m');
-        // Fit again once connected and likely visible
-        setTimeout(() => fitAddon.fit(), 100);
+        // Fit and Sync after connection is established
+        setTimeout(() => fitTerminal(), 100);
         term.focus();
       };
 
@@ -74,39 +97,36 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(data);
       });
 
-      // Robust Resize Observer
+      // Resize Observer
       resizeObserver.current = new ResizeObserver(() => {
-        // We use requestAnimationFrame to ensure we fit during the paint cycle
         requestAnimationFrame(() => {
-            try { fitAddon.fit(); } catch (e) {}
+            fitTerminal();
         });
       });
       resizeObserver.current.observe(terminalRef.current);
       
-      // Also listen to window resize as a backup
-      window.addEventListener('resize', () => fitAddon.fit());
+      // Backup window resize
+      window.addEventListener('resize', fitTerminal);
     }
 
     return () => {
-      // Optional cleanup
+      // Cleanup if desired (ws close, etc)
     };
-  }, []); // Run once on mount
+  }, []);
 
-  // Update theme dynamically
+  // Theme Update
   useEffect(() => {
     if (xtermRef.current) {
       xtermRef.current.options.theme = themes[theme];
     }
   }, [theme]);
 
-  // Aggressively refit when "isOpen" changes to handle the drawer animation
+  // Open/Close Animation Handling
   useEffect(() => {
-    if (isOpen && fitAddonRef.current) {
-       // Fit immediately
-       fitAddonRef.current.fit();
-       // And fit repeatedly during the CSS transition (300ms)
+    if (isOpen) {
+       // Fit repeatedly during animation to keep it synced
        const timers = [50, 150, 300, 500].map(t => 
-         setTimeout(() => fitAddonRef.current?.fit(), t)
+         setTimeout(() => fitTerminal(), t)
        );
        return () => timers.forEach(t => clearTimeout(t));
     }
@@ -125,7 +145,6 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
         </button>
       </div>
       
-      {/* Explicitly set width/height to 100% to ensure container fills parent */}
       <div className="flex-1 p-1 relative w-full h-full overflow-hidden">
         <div ref={terminalRef} style={{ width: '100%', height: '100%' }} />
       </div>

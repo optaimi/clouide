@@ -15,6 +15,9 @@ import pty
 import signal
 import select
 import errno
+import struct
+import fcntl
+import termios
 
 app = FastAPI()
 
@@ -28,7 +31,6 @@ app.add_middleware(
 )
 
 # --- State Management ---
-# Track active terminal processes so we can kill them
 active_terminals: Set[int] = set()
 
 # --- Helper Functions ---
@@ -163,23 +165,20 @@ def list_files(x_session_id: str = Header(...)):
     if not os.path.exists(workspace):
         raise HTTPException(status_code=404, detail="Workspace not initialized")
     
-    # 1. EXPANDED IGNORE LIST: Add .bun, .cache, .local, etc.
+    # IGNORE LIST
     IGNORED_DIRS = {
         '.git', '.bun', '.cache', '.npm', '.config', '.local', '.vscode',
         'node_modules', '__pycache__', 'dist', 'build', 'site-packages', 'venv', 'env'
     }
 
     for root, dirs, filenames in os.walk(workspace):
-        # Filter directories in-place so os.walk does not descend into them
-        # We perform a copy of the list to iterate safely while modifying
+        # Filter directories in-place
         for d in list(dirs):
             if d.startswith('.') or d in IGNORED_DIRS:
                 dirs.remove(d)
         
         for filename in filenames:
-            # Ignore hidden files (dotfiles)
             if filename.startswith('.'): continue
-            
             full_path = os.path.join(root, filename)
             rel_path = os.path.relpath(full_path, workspace)
             files.append(rel_path)
@@ -269,18 +268,18 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- Kill Terminals Endpoint ---
+# --- Kill Terminals Endpoint (Hardened) ---
 @app.post("/terminals/kill")
 def kill_all_terminals(x_session_id: str = Header(...)):
     """Kill all active PTY processes to free resources."""
     count = 0
-    # Create a copy to iterate safely
+    # Use list() to avoid runtime error during set modification
     for pid in list(active_terminals):
         try:
             os.kill(pid, signal.SIGKILL)
             count += 1
-        except ProcessLookupError:
-            pass # Already dead
+        except Exception:
+            pass 
         finally:
             active_terminals.discard(pid)
             
@@ -289,10 +288,6 @@ def kill_all_terminals(x_session_id: str = Header(...)):
 # --- PTY Persistent Terminal Endpoint ---
 @app.websocket("/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
-    """
-    Provide an interactive shell using a PTY (Pseudo-Terminal).
-    This allows stateful sessions (export vars) and interactive CLIs.
-    """
     await websocket.accept()
     
     workspace = get_workspace_path(session_id)
@@ -301,15 +296,12 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
         await websocket.close()
         return
 
-    # 1. Create PTY pair
     master_fd, slave_fd = pty.openpty()
 
-    # FIX 2: Set HOME env var so 'cd' works as expected
+    # Set HOME to workspace
     env = os.environ.copy()
     env["HOME"] = workspace
 
-    # 2. Spawn the shell process attached to the PTY
-    # We use 'setsid' to create a new session so it behaves like a real shell
     try:
         process = subprocess.Popen(
             ["/bin/bash"],
@@ -317,25 +309,19 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             stdout=slave_fd,
             stderr=slave_fd,
             cwd=workspace,
-            env=env, # <--- Apply environment
+            env=env, 
             preexec_fn=os.setsid, 
             close_fds=True
         )
         
-        # Track the process
         active_terminals.add(process.pid)
-        
-        # Close slave in parent (the child has it now)
         os.close(slave_fd)
         
-        # 3. Async loop to read from PTY output and write to WebSocket
         loop = asyncio.get_event_loop()
 
         async def read_from_pty():
-            """Reads data from the PTY master (shell output) and sends to WS"""
             try:
                 while True:
-                    # Run blocking os.read in an executor to avoid blocking the async loop
                     data = await loop.run_in_executor(None, os.read, master_fd, 1024)
                     if not data:
                         break
@@ -344,25 +330,34 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                 pass
 
         async def write_to_pty():
-            """Reads data from WS (user input) and writes to PTY master"""
             try:
                 while True:
                     data = await websocket.receive_text()
-                    # If user sends a specific exit command or disconnects
-                    if data == '__ping__': continue
                     
-                    # FIX 3: REMOVED the forced '\n' logic. 
-                    # We now send exactly what xterm sends us.
+                    # FIX: Handle Resize Events (JSON) vs Raw Text
+                    try:
+                        # Attempt to parse as JSON first
+                        payload = json.loads(data)
+                        if isinstance(payload, dict) and payload.get('type') == 'resize':
+                            # It's a resize command!
+                            rows = payload.get('rows', 24)
+                            cols = payload.get('cols', 80)
+                            # TIOCSWINSZ = 0x5414 on Linux
+                            winsize = struct.pack("HHHH", rows, cols, 0, 0)
+                            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
+                            continue
+                    except (json.JSONDecodeError, TypeError):
+                        pass # Not JSON, treat as raw input
+
+                    # Normal Keystroke Handling (No forced \n)
                     if data:
                          await loop.run_in_executor(None, os.write, master_fd, data.encode())
             except Exception:
                 pass
 
-        # Run reader and writer concurrently
         read_task = asyncio.create_task(read_from_pty())
         write_task = asyncio.create_task(write_to_pty())
 
-        # Wait until one finishes (usually connection closed)
         done, pending = await asyncio.wait(
             [read_task, write_task],
             return_when=asyncio.FIRST_COMPLETED
@@ -374,7 +369,6 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
     except Exception as e:
         await websocket.send_text(f"\r\nTerminal Error: {str(e)}\r\n")
     finally:
-        # Cleanup
         if process.pid in active_terminals:
             active_terminals.discard(process.pid)
         try:
