@@ -13,11 +13,10 @@ import json
 import asyncio
 import pty
 import signal
-import select
-import errno
 import struct
 import fcntl
 import termios
+import stat
 
 app = FastAPI()
 
@@ -33,19 +32,44 @@ app.add_middleware(
 # --- State Management ---
 active_terminals: Set[int] = set()
 
-# --- Helper Functions ---
+# --- Constants ---
+# Use .expanduser to be safe, but we know it's /home/coder/clouide_workspaces
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 
+# --- Security & Startup ---
+@app.on_event("startup")
+async def setup_security():
+    """
+    Security Hardening:
+    Sets the root workspace directory to Write+Execute ONLY (0o300).
+    - Write: Backend can create new session folders.
+    - Execute: Backend/Terminal can 'enter' specific session folders.
+    - NO READ: Prevents 'ls' from listing other users' session IDs.
+    """
+    os.makedirs(BASE_DIR, exist_ok=True)
+    try:
+        # 0o300 = --wx------ (Owner: Write/Execute, No Read)
+        # This prevents 'ls ..' traversing from inside a workspace
+        print(f"🔒 Locking down {BASE_DIR} with permissions 0o300...")
+        os.chmod(BASE_DIR, 0o300)
+    except Exception as e:
+        print(f"⚠️ Warning: Could not set secure permissions: {e}")
+
+# --- Helper Functions ---
 def get_workspace_path(session_id: str):
-    if not session_id or len(session_id) < 5:
+    if not session_id or len(session_id) < 2: # Basic validation
         raise HTTPException(status_code=400, detail="Invalid Session ID")
-    return os.path.join(BASE_DIR, session_id, "repo")
+    # Sanitize to prevent path traversal like "current/../../other"
+    safe_id = os.path.basename(session_id)
+    return os.path.join(BASE_DIR, safe_id, "repo")
 
 def get_config_path(session_id: str):
-    return os.path.join(BASE_DIR, session_id, "config.json")
+    safe_id = os.path.basename(session_id)
+    return os.path.join(BASE_DIR, safe_id, "config.json")
 
 def save_credentials(session_id: str, username: str, token: str):
     config_path = get_config_path(session_id)
+    # Ensure the session dir exists (it might not have a repo yet)
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w") as f:
         json.dump({"username": username, "token": token}, f)
@@ -165,14 +189,12 @@ def list_files(x_session_id: str = Header(...)):
     if not os.path.exists(workspace):
         raise HTTPException(status_code=404, detail="Workspace not initialized")
     
-    # IGNORE LIST
     IGNORED_DIRS = {
         '.git', '.bun', '.cache', '.npm', '.config', '.local', '.vscode',
         'node_modules', '__pycache__', 'dist', 'build', 'site-packages', 'venv', 'env'
     }
 
     for root, dirs, filenames in os.walk(workspace):
-        # Filter directories in-place
         for d in list(dirs):
             if d.startswith('.') or d in IGNORED_DIRS:
                 dirs.remove(d)
@@ -293,7 +315,6 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
 
     master_fd, slave_fd = pty.openpty()
 
-    # FIX: Set UTF-8, BROWSER=echo, and HOME
     env = os.environ.copy()
     env["HOME"] = workspace
     env["TERM"] = "xterm-256color"
@@ -321,7 +342,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
         async def read_from_pty():
             try:
                 while True:
-                    data = await loop.run_in_executor(None, os.read, master_fd, 1024)
+                    # FIX: Increased buffer size from 1024 to 16384
+                    # This prevents splitting ANSI escape codes which causes
+                    # stuttering and visual glitches in rich CLI apps.
+                    data = await loop.run_in_executor(None, os.read, master_fd, 16384)
                     if not data:
                         break
                     await websocket.send_text(data.decode(errors='replace'))
@@ -333,11 +357,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                 while True:
                     data = await websocket.receive_text()
                     
-                    # FIX: Ignore Pings
                     if data == '__ping__':
                         continue
 
-                    # FIX: Handle Resize Events (JSON) vs Raw Text
                     try:
                         payload = json.loads(data)
                         if isinstance(payload, dict) and payload.get('type') == 'resize':
@@ -349,7 +371,6 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                     except (json.JSONDecodeError, TypeError):
                         pass
 
-                    # Raw keystrokes (No forced newline)
                     if data:
                          await loop.run_in_executor(None, os.write, master_fd, data.encode())
             except Exception:
