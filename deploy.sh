@@ -1,4 +1,6 @@
 #!/bin/bash
+# --- Kill Stuck Containers ---
+sudo snap restart docker
 
 # --- Auto-detect paths ---
 APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

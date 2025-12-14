@@ -11,12 +11,19 @@ import shutil
 import os
 import json
 import asyncio
-import pty
-import signal
 import struct
-import fcntl
-import termios
-import stat
+import platform
+
+# --- OS-Specific Imports (Prevents Crash on Windows) ---
+try:
+    import pty
+    import fcntl
+    import termios
+    import signal
+    IS_UNIX = True
+except ImportError:
+    IS_UNIX = False
+    print("⚠️ Warning: Non-Unix OS detected. Terminal features will be disabled.")
 
 app = FastAPI()
 
@@ -33,7 +40,6 @@ app.add_middleware(
 active_terminals: Set[int] = set()
 
 # --- Constants ---
-# Use .expanduser to be safe, but we know it's /home/coder/clouide_workspaces
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 
 # --- Security & Startup ---
@@ -46,20 +52,26 @@ async def setup_security():
     - Execute: Backend/Terminal can 'enter' specific session folders.
     - NO READ: Prevents 'ls' from listing other users' session IDs.
     """
-    os.makedirs(BASE_DIR, exist_ok=True)
+    print(f"🚀 Backend starting. Workspaces root: {BASE_DIR}")
     try:
+        os.makedirs(BASE_DIR, exist_ok=True)
         # 0o300 = --wx------ (Owner: Write/Execute, No Read)
         # This prevents 'ls ..' traversing from inside a workspace
-        print(f"🔒 Locking down {BASE_DIR} with permissions 0o300...")
-        os.chmod(BASE_DIR, 0o300)
+        if IS_UNIX:
+            try:
+                os.chmod(BASE_DIR, 0o300)
+                print(f"🔒 Security: Locked down {BASE_DIR} with permissions 0o300")
+            except PermissionError:
+                print(f"⚠️ Warning: Could not set permissions on {BASE_DIR} (Permission Denied). Check Docker volume ownership.")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not set secure permissions: {e}")
     except Exception as e:
-        print(f"⚠️ Warning: Could not set secure permissions: {e}")
+        print(f"❌ Critical Error during startup: {e}")
 
 # --- Helper Functions ---
 def get_workspace_path(session_id: str):
-    if not session_id or len(session_id) < 2: # Basic validation
+    if not session_id or len(session_id) < 2:
         raise HTTPException(status_code=400, detail="Invalid Session ID")
-    # Sanitize to prevent path traversal like "current/../../other"
     safe_id = os.path.basename(session_id)
     return os.path.join(BASE_DIR, safe_id, "repo")
 
@@ -69,7 +81,6 @@ def get_config_path(session_id: str):
 
 def save_credentials(session_id: str, username: str, token: str):
     config_path = get_config_path(session_id)
-    # Ensure the session dir exists (it might not have a repo yet)
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w") as f:
         json.dump({"username": username, "token": token}, f)
@@ -120,7 +131,7 @@ class CommandRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "Clouide Multi-Tenant"}
+    return {"status": "ok", "service": "Clouide Multi-Tenant", "os": platform.system()}
 
 @app.post("/login")
 def login_git(payload: LoginRequest, x_session_id: str = Header(...)):
@@ -292,6 +303,9 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
 
 @app.post("/terminals/kill")
 def kill_all_terminals(x_session_id: str = Header(...)):
+    if not IS_UNIX:
+        return {"status": "error", "message": "Not supported on Windows/Non-Unix"}
+        
     count = 0
     for pid in list(active_terminals):
         try:
@@ -307,6 +321,11 @@ def kill_all_terminals(x_session_id: str = Header(...)):
 async def terminal_websocket(websocket: WebSocket, session_id: str):
     await websocket.accept()
     
+    if not IS_UNIX:
+        await websocket.send_text("Error: Terminal not supported on this operating system (Windows?).\r\n")
+        await websocket.close()
+        return
+
     workspace = get_workspace_path(session_id)
     if not os.path.exists(workspace):
         await websocket.send_text("Error: Workspace not found. Please initialize a project.\r\n")
