@@ -268,12 +268,9 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- Kill Terminals Endpoint (Hardened) ---
 @app.post("/terminals/kill")
 def kill_all_terminals(x_session_id: str = Header(...)):
-    """Kill all active PTY processes to free resources."""
     count = 0
-    # Use list() to avoid runtime error during set modification
     for pid in list(active_terminals):
         try:
             os.kill(pid, signal.SIGKILL)
@@ -282,10 +279,8 @@ def kill_all_terminals(x_session_id: str = Header(...)):
             pass 
         finally:
             active_terminals.discard(pid)
-            
     return {"status": "success", "message": f"Killed {count} terminal processes"}
 
-# --- PTY Persistent Terminal Endpoint ---
 @app.websocket("/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
     await websocket.accept()
@@ -298,9 +293,13 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
 
     master_fd, slave_fd = pty.openpty()
 
-    # Set HOME to workspace
+    # FIX: Set UTF-8, BROWSER=echo, and HOME
     env = os.environ.copy()
     env["HOME"] = workspace
+    env["TERM"] = "xterm-256color"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+    env["BROWSER"] = "echo"
 
     try:
         process = subprocess.Popen(
@@ -334,22 +333,23 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                 while True:
                     data = await websocket.receive_text()
                     
+                    # FIX: Ignore Pings
+                    if data == '__ping__':
+                        continue
+
                     # FIX: Handle Resize Events (JSON) vs Raw Text
                     try:
-                        # Attempt to parse as JSON first
                         payload = json.loads(data)
                         if isinstance(payload, dict) and payload.get('type') == 'resize':
-                            # It's a resize command!
                             rows = payload.get('rows', 24)
                             cols = payload.get('cols', 80)
-                            # TIOCSWINSZ = 0x5414 on Linux
                             winsize = struct.pack("HHHH", rows, cols, 0, 0)
                             fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
                             continue
                     except (json.JSONDecodeError, TypeError):
-                        pass # Not JSON, treat as raw input
+                        pass
 
-                    # Normal Keystroke Handling (No forced \n)
+                    # Raw keystrokes (No forced newline)
                     if data:
                          await loop.run_in_executor(None, os.write, master_fd, data.encode())
             except Exception:

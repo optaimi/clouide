@@ -14,46 +14,40 @@ interface TerminalProps {
 }
 
 const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
+  // ... (refs remain the same) ...
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeObserver = useRef<ResizeObserver | null>(null);
+  // NEW: Ref to store the ping interval ID
+  const pingIntervalRef = useRef<any>(null);
 
+  // ... (themes object remains the same) ...
   const themes = {
     dark: { background: '#1e1e1e', foreground: '#cccccc', cursor: '#cccccc' },
     light: { background: '#ffffff', foreground: '#333333', cursor: '#333333' },
     midnight: { background: '#0f172a', foreground: '#e2e8f0', cursor: '#38bdf8' },
   };
 
-  // Helper to fit and sync with backend
   const fitTerminal = () => {
-    if (!fitAddonRef.current || !xtermRef.current || !wsRef.current) return;
-    
-    try {
-      fitAddonRef.current.fit();
-      
-      // Grab new dimensions
-      const cols = xtermRef.current.cols;
-      const rows = xtermRef.current.rows;
-
-      // Send resize command to backend if connected
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({
-          type: 'resize',
-          cols: cols,
-          rows: rows
-        }));
-      }
-    } catch (e) {
-      console.error("Fit error:", e);
-    }
+     // ... (keep existing fitTerminal logic) ...
+     if (!fitAddonRef.current || !xtermRef.current || !wsRef.current) return;
+     try {
+       fitAddonRef.current.fit();
+       const cols = xtermRef.current.cols;
+       const rows = xtermRef.current.rows;
+       if (wsRef.current.readyState === WebSocket.OPEN) {
+         wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
+       }
+     } catch (e) { console.error("Fit error", e); }
   };
 
   useEffect(() => {
     if (!isOpen || !terminalRef.current) return;
 
     if (!xtermRef.current) {
+      // ... (keep xterm initialization logic) ...
       const term = new XTerm({
         cursorBlink: true,
         fontSize: 14,
@@ -65,15 +59,15 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
-      term.loadAddon(new WebLinksAddon());
+      term.loadAddon(new WebLinksAddon()); // Allows clicking links!
 
       term.open(terminalRef.current);
+      try { fitAddon.fit(); } catch (e) {}
+
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
 
-      // Initial fit (local)
-      try { fitAddon.fit(); } catch (e) {}
-
+      // ... (WebSocket connection logic) ...
       const sessionId = localStorage.getItem('clouide_session_id') || 'demo';
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.hostname;
@@ -85,49 +79,57 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
 
       ws.onopen = () => {
         term.writeln('\x1b[32mWelcome to Clouide Terminal\x1b[0m');
-        // Fit and Sync after connection is established
         setTimeout(() => fitTerminal(), 100);
         term.focus();
+
+        // --- NEW: START KEEP-ALIVE PING ---
+        // Send a ping every 30 seconds to keep ngrok/proxies alive
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send('__ping__'); // Backend will ignore this
+          }
+        }, 30000);
       };
 
       ws.onmessage = (event) => term.write(event.data);
-      ws.onclose = () => term.writeln('\r\n\x1b[33mDisconnected.\x1b[0m');
+      ws.onclose = () => {
+        term.writeln('\r\n\x1b[33mDisconnected.\x1b[0m');
+        // Clear interval on close
+        if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      };
       
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(data);
       });
 
-      // Resize Observer
+      // ... (rest of resize logic remains the same) ...
       resizeObserver.current = new ResizeObserver(() => {
-        requestAnimationFrame(() => {
-            fitTerminal();
-        });
+        requestAnimationFrame(() => fitTerminal());
       });
       resizeObserver.current.observe(terminalRef.current);
-      
-      // Backup window resize
       window.addEventListener('resize', fitTerminal);
     }
 
     return () => {
-      // Cleanup if desired (ws close, etc)
+      // Cleanup interval on unmount
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     };
   }, []);
 
-  // Theme Update
+  // ... (rest of component: useEffects for theme, animation, and return statement) ...
+  // Keep the rest of the file exactly as it was in the previous valid version
+  // Just ensure you add the pingInterval logic inside ws.onopen
+  
+  // (Adding missing parts for completeness of the copy-paste)
   useEffect(() => {
     if (xtermRef.current) {
       xtermRef.current.options.theme = themes[theme];
     }
   }, [theme]);
 
-  // Open/Close Animation Handling
   useEffect(() => {
     if (isOpen) {
-       // Fit repeatedly during animation to keep it synced
-       const timers = [50, 150, 300, 500].map(t => 
-         setTimeout(() => fitTerminal(), t)
-       );
+       const timers = [50, 150, 300, 500].map(t => setTimeout(() => fitTerminal(), t));
        return () => timers.forEach(t => clearTimeout(t));
     }
   }, [isOpen]);
@@ -144,7 +146,6 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
           <X size={14} />
         </button>
       </div>
-      
       <div className="flex-1 p-1 relative w-full h-full overflow-hidden">
         <div ref={terminalRef} style={{ width: '100%', height: '100%' }} />
       </div>
