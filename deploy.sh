@@ -39,14 +39,20 @@ sudo chmod -R 777 "$APP_DIR/workspaces"
 # --- 6. Launch Services ---
 echo "🚀  Launching containers..."
 
-if command -v docker-compose &> /dev/null; then
+# FIX: Prioritize modern 'docker compose' (v2) over legacy 'docker-compose' (v1)
+# The legacy v1 python tool crashes with KeyError on modern Docker.
+if docker compose version > /dev/null 2>&1; then
+    DC="docker compose"
+elif command -v docker-compose &> /dev/null; then
     DC="docker-compose"
 else
-    DC="docker compose"
+    echo "❌ Error: Docker Compose not found."
+    exit 1
 fi
 
+echo "   Using command: $DC"
+
 # We use --force-recreate to ensure it uses the fresh build
-# We don't need 'down' or 'rm' because 'snap restart' already killed everything.
 sudo $DC up -d --build --remove-orphans --force-recreate
 
 echo "=========================================="
