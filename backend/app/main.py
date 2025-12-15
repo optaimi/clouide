@@ -185,9 +185,58 @@ def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = He
             shutil.rmtree(workspace)
         os.makedirs(workspace, exist_ok=True)
         repo = git.Repo.init(workspace)
+        
+        # Enhanced README with AI tool documentation
+        readme_content = f"""# {project_name}
+
+## Welcome to Clouide!
+Clouide is an open-source, browser-based integrated development environment (IDE) which is designed to run securely within isolated Docker containers on cloud infrastructure.
+## 💡 Tips & Tricks
+- **Save:** Press `Ctrl + S` (or `Cmd + S`) to save your current file.
+- **Terminal:** Toggle the terminal panel with the icon in the toolbar.
+- **Settings:** Use the **View** menu to adjust Font Size, Word Wrap, and Minimap.
+- **Themes:** Click the **Theme** button in the sidebar footer to switch between Dark, Light, and Midnight modes.
+- **Download:** You can export your entire workspace at any time via **File > Download Code**.
+
+
+## 🤖 AI Assistant Tools
+This environment comes pre-installed with powerful AI CLI tools.
+
+### 1. Google Gemini (`gemini`)
+Interact with Google's Gemini models directly.
+'''bash
+gemini chat "Explain how React hooks work"
+'''
+
+### 2. Opencode (`opencode`)
+Open source AI coding assistant.
+'''bash
+opencode init
+opencode suggest "Refactor this file"
+'''
+
+### 3. Claude Code (`claude`)
+Anthropic's Claude 3.5 Sonnet for development.
+'''bash
+claude "Create a Python script to parse CSV files"
+'''
+
+### 4. OpenAI Codex (`codex`)
+Command-line interface for OpenAI's coding models.
+'''bash
+codex explain src/index.ts
+'''
+
+## 🚀 Getting Started
+1. Open the **Terminal**.
+2. Run any of the commands above.
+3. Start coding!
+"""
+
         readme_path = os.path.join(workspace, "README.md")
         with open(readme_path, "w") as f:
-            f.write(f"# {project_name}\n\nInitialized by Clouide.")
+            f.write(readme_content)
+            
         return {"status": "success", "message": f"Workspace '{project_name}' initialized"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
