@@ -12,8 +12,12 @@ import { applyTheme, getSavedTheme, Theme } from './utils/theme';
 const App: React.FC = () => {
   // Track whether a workspace has been initialized so we can swap from the loader.
   const [isLoaded, setIsLoaded] = useState(false);
+  
   // The filepath currently being edited in the code pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
+  
+  // NEW: Track list of open files for tabs
+  const [openFiles, setOpenFiles] = useState<string[]>([]);
 
   // Editor appearance and behavior preferences.
   const [currentTheme, setCurrentTheme] = useState<Theme>('dark');
@@ -50,6 +54,26 @@ const App: React.FC = () => {
     };
     checkSession();
   }, []);
+
+  // NEW: Handle opening a file (adds to tabs if not present)
+  const handleFileOpen = (file: string) => {
+    if (!openFiles.includes(file)) {
+      setOpenFiles(prev => [...prev, file]);
+    }
+    setActiveFile(file);
+  };
+
+  // NEW: Handle closing a tab
+  const handleTabClose = (e: React.MouseEvent, file: string) => {
+    e.stopPropagation();
+    const newFiles = openFiles.filter(f => f !== file);
+    setOpenFiles(newFiles);
+    
+    // If we closed the active file, switch to the last available tab, or null
+    if (activeFile === file) {
+      setActiveFile(newFiles.length > 0 ? newFiles[newFiles.length - 1] : null);
+    }
+  };
 
   const handleThemeChange = (t: Theme) => {
     setCurrentTheme(t);
@@ -99,7 +123,8 @@ const App: React.FC = () => {
         {/* Sidebar */}
         <div className="flex flex-col h-full border-r border-ide-border bg-ide-sidebar relative">
            <div className="flex-1 overflow-hidden">
-             <FileExplorer onFileSelect={setActiveFile} selectedFile={activeFile} />
+             {/* Pass handleFileOpen instead of direct setter */}
+             <FileExplorer onFileSelect={handleFileOpen} selectedFile={activeFile} />
            </div>
            
            {/* Theme Button (Sidebar Footer) */}
@@ -115,6 +140,31 @@ const App: React.FC = () => {
         
         {/* Main Editor Area */}
         <div className="flex-1 flex flex-col h-full min-w-0 bg-ide-bg">
+          
+          {/* NEW: Tab Bar */}
+          {openFiles.length > 0 && (
+            <div className="flex items-center bg-ide-sidebar border-b border-ide-border overflow-x-auto no-scrollbar">
+              {openFiles.map(file => (
+                <div 
+                  key={file}
+                  onClick={() => setActiveFile(file)}
+                  className={`
+                    group flex items-center gap-2 px-3 py-2 text-xs cursor-pointer border-r border-ide-border min-w-[120px] max-w-[200px] select-none
+                    ${activeFile === file ? 'bg-ide-bg text-ide-text border-t-2 border-t-ide-accent' : 'text-ide-dim hover:bg-ide-activity'}
+                  `}
+                >
+                  <span className="truncate flex-1">{file.split('/').pop()}</span>
+                  <button 
+                    onClick={(e) => handleTabClose(e, file)}
+                    className={`opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-ide-bg hover:text-red-400 ${activeFile === file ? 'opacity-100' : ''}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="h-9 bg-ide-bg border-b border-ide-border flex items-center px-4 text-sm justify-between flex-shrink-0">
             <span className="opacity-80">{activeFile || "Welcome to Clouide"}</span>
             <button 

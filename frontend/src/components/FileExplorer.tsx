@@ -14,20 +14,25 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
   // Simple flag for showing the spinning refresh icon.
   const [loading, setLoading] = useState(false);
 
-  // 1. Fetch Files
-  const fetchFiles = async () => {
-    setLoading(true);
+  // 1. Fetch Files (Updated to support silent refresh)
+  const fetchFiles = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get('/files');
       setFiles(res.data.files);
     } catch (err) {
       console.error("Failed to load files", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { fetchFiles(); }, []);
+  useEffect(() => { 
+    fetchFiles(); 
+    // Auto-refresh every 2 seconds to keep file list in sync
+    const interval = setInterval(() => fetchFiles(true), 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 2. Create New File
   const handleNewFile = async () => {
@@ -83,7 +88,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ onFileSelect, selectedFile 
       <div className="p-3 bg-ide-sidebar border-b border-ide-border">
         <div className="flex justify-between items-center text-ide-text mb-2">
           <span className="uppercase text-xs font-bold tracking-wider text-ide-dim">Explorer</span>
-          <button onClick={fetchFiles} className="hover:bg-ide-activity p-1 rounded text-ide-text" title="Refresh">
+          <button onClick={() => fetchFiles()} className="hover:bg-ide-activity p-1 rounded text-ide-text" title="Refresh">
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
