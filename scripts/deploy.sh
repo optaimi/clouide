@@ -1,65 +1,48 @@
 #!/bin/bash
-# --- Kill Stuck Containers ---
-sudo snap restart docker
 
 # --- Auto-detect paths ---
 APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-FRONTEND_DIR="$APP_DIR/frontend"
+echo "🚀 Starting Deployment..."
 
-echo "🚀 Starting Deployment from $APP_DIR..."
-
-# --- Auto-detect Docker command ---
-if command -v docker-compose &> /dev/null; then
-    DOCKER_COMPOSE="docker-compose"
-else
-    DOCKER_COMPOSE="docker compose"
-fi
-
-# --- Update Code ---
-echo "⬇️  Pulling latest changes..."
-git pull origin main || git pull origin master
-
-# --- Build Frontend ---
-echo "📦 Building Frontend..."
-cd "$FRONTEND_DIR"
-# Always install to ensure packages like xterm are added
-npm install
-npm run build
-
-if [ $? -ne 0 ]; then
-  echo "❌ Frontend build failed. Aborting."
-  exit 1
-fi
-
-# --- Config & Permissions ---
-echo "🔧 Configuring Docker..."
+# --- 1. Force Sync with Git ---
+echo "⬇️  Syncing with GitHub..."
 cd "$APP_DIR"
+git fetch --all
+git reset --hard origin/main
+chmod +x scripts/*.sh
 
-# Generate simple compose file (No API keys needed here)
-cat > docker-compose.yml <<EOF
-version: '3.8'
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./workspaces:/home/coder/clouide_workspaces
-      - ./frontend/dist:/frontend/dist
-    environment:
-      - PYTHONUNBUFFERED=1
-EOF
+# --- 2. Run Helpers ---
+# Run cleanup first
+./scripts/cleanup.sh
 
-# Ensure workspace folder exists and is writable
+# Build the frontend (No sudo needed here usually)
+./scripts/build.sh
+if [ $? -ne 0 ]; then 
+    echo "❌ Deployment stopped due to build failure."
+    exit 1
+fi
+
+# --- 3. Docker Configuration ---
+echo "🔧 Configuring Environment..."
+
+# Ensure workspace folder exists
 mkdir -p "$APP_DIR/workspaces"
-chmod -R 777 "$APP_DIR/workspaces"
 
-# --- Launch ---
+# ADDED SUDO HERE: Fix permissions on files owned by Docker
+sudo chmod -R 777 "$APP_DIR/workspaces"
+
+# --- 4. Launch Services ---
 echo "🛑 Restarting containers..."
-$DOCKER_COMPOSE down
-$DOCKER_COMPOSE up --build --force-recreate -d
+
+if command -v docker-compose &> /dev/null; then
+    DC="docker-compose"
+else
+    DC="docker compose"
+fi
+
+# ADDED SUDO HERE: Required to stop/start containers
+sudo $DC down
+sudo $DC up -d --build --remove-orphans --force-recreate
 
 echo "=========================================="
 echo "✅ Deployment Complete! App is live."
