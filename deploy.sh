@@ -4,47 +4,39 @@
 APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo "🚀 Starting Deployment..."
 
-# --- 1. THE NUCLEAR FIX: Restart Docker Daemon FIRST ---
-# This kills all running containers and releases their file locks immediately.
-# This prevents the "permission denied" errors when trying to stop/delete later.
-echo "🛑  Resetting Docker Daemon..."
-sudo systemctl restart docker
-# Wait a moment for Docker to wake up
-sleep 5
-
-# --- 2. Force Sync with Git ---
+# --- 1. Force Sync with Git ---
 echo "⬇️  Syncing with GitHub..."
 cd "$APP_DIR"
 git fetch --all
 git reset --hard origin/main
 chmod +x scripts/*.sh
 
-# --- 3. Run Helpers ---
-# Now that Docker is restarted and containers are dead, cleanup will work.
-./scripts/cleanup.sh
-
-# Build the frontend
+# --- 2. Build Frontend FIRST ---
+# We build first so we don't need Docker yet. 
+# This prevents the "restart -> wait 10s -> stuck again" loop.
 ./scripts/build.sh
 if [ $? -ne 0 ]; then 
     echo "❌ Deployment stopped due to build failure."
     exit 1
 fi
 
-# --- 4. Docker Configuration ---
-echo "🔧 Configuring Environment..."
+# --- 3. THE SNAP FIX: Restart Docker Now ---
+# We do this AFTER the build, right before we need it.
+# This breaks the AppArmor locks on the 'workspaces' folder.
+echo "🛑  Restarting Snap Docker Service..."
+sudo snap restart docker
+sleep 5
 
-# Ensure workspace folder exists
+# --- 4. Run Cleanup ---
+# Now that Docker is fresh, we can clean up without permission errors.
+./scripts/cleanup.sh
+
+# --- 5. Docker Configuration ---
+echo "🔧 Configuring Environment..."
 mkdir -p "$APP_DIR/workspaces"
-# Fix permissions (Sudo is required because previous containers might have left root-owned files)
 sudo chmod -R 777 "$APP_DIR/workspaces"
 
-# --- 5. Launch Services ---
-echo "🛑  Force-removing old containers..."
-
-# KILL THEM NOW (So they can't respawn during the build)
-sudo docker rm -f clouide_app_backend_1 2>/dev/null || true
-sudo docker ps -a -q --filter "name=clouide" | xargs -r sudo docker rm -f
-
+# --- 6. Launch Services ---
 echo "🚀  Launching containers..."
 
 if command -v docker-compose &> /dev/null; then
@@ -53,8 +45,9 @@ else
     DC="docker compose"
 fi
 
-# Just 'up' (No 'down' needed because we killed them manually)
-sudo $DC up -d --build --remove-orphans
+# We use --force-recreate to ensure it uses the fresh build
+# We don't need 'down' or 'rm' because 'snap restart' already killed everything.
+sudo $DC up -d --build --remove-orphans --force-recreate
 
 echo "=========================================="
 echo "✅ Deployment Complete! App is live."
