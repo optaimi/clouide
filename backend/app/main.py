@@ -1,4 +1,4 @@
-# backend/app/main.py
+# backend/app/main.py (Part 1)
 from fastapi import FastAPI, HTTPException, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -56,7 +56,6 @@ async def setup_security():
     try:
         os.makedirs(BASE_DIR, exist_ok=True)
         # 0o300 = --wx------ (Owner: Write/Execute, No Read)
-        # This prevents 'ls ..' traversing from inside a workspace
         if IS_UNIX:
             try:
                 os.chmod(BASE_DIR, 0o300)
@@ -157,10 +156,15 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
     creds = get_credentials(x_session_id)
     
     try:
+        # Force clean the directory to prevent "Directory not empty" errors
         if os.path.exists(workspace):
-            shutil.rmtree(workspace)
+            try:
+                shutil.rmtree(workspace)
+            except OSError as e:
+                print(f"Delete error: {e}")
+                # Try creating it if it failed, or let clone fail naturally
+                
         os.makedirs(workspace, exist_ok=True)
-        shutil.rmtree(workspace) 
 
         clone_url = payload.url
         if creds:
@@ -172,8 +176,18 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
         git.Repo.clone_from(clone_url, workspace)
         return {"status": "success"}
     except Exception as e:
+        error_msg = str(e)
+        # Sanitize common error messages for the frontend
+        if "Authentication failed" in error_msg:
+            safe_msg = "Authentication failed. Please check your token."
+        elif "not found" in error_msg.lower():
+            safe_msg = "Repository not found."
+        else:
+            # Try to grab just the stderr if available
+            safe_msg = f"Clone failed: {error_msg.split('stderr:')[0].strip()}"
+            
         print(f"Clone Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_msg)
 
 @app.post("/init")
 def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = Header(...)):
@@ -236,7 +250,6 @@ codex explain src/index.ts
         readme_path = os.path.join(workspace, "README.md")
         with open(readme_path, "w") as f:
             f.write(readme_content)
-            
         return {"status": "success", "message": f"Workspace '{project_name}' initialized"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -407,12 +420,31 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
         
         loop = asyncio.get_event_loop()
 
+        # --- JAIL ENFORCER ---
+        async def jail_enforcer():
+            """Monitors the shell process. If it leaves the workspace, kill it."""
+            try:
+                while process.poll() is None:
+                    await asyncio.sleep(2)  # Check every 2 seconds
+                    try:
+                        # Read the symlink /proc/[pid]/cwd to see where the shell actually is
+                        # This works reliably on Linux Docker containers
+                        current_dir = os.readlink(f"/proc/{process.pid}/cwd")
+                        
+                        # Ensure current_dir starts with the workspace path
+                        if not current_dir.startswith(workspace):
+                            await websocket.send_text(f"\r\n\x1b[1;31mSECURITY ALERT: Access denied to {current_dir}.\r\nSession terminated.\x1b[0m\r\n")
+                            process.terminate()
+                            break
+                    except Exception:
+                        break
+            except asyncio.CancelledError:
+                pass
+        # ---------------------
+
         async def read_from_pty():
             try:
                 while True:
-                    # FIX: Increased buffer size from 1024 to 16384
-                    # This prevents splitting ANSI escape codes which causes
-                    # stuttering and visual glitches in rich CLI apps.
                     data = await loop.run_in_executor(None, os.read, master_fd, 16384)
                     if not data:
                         break
@@ -446,9 +478,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
 
         read_task = asyncio.create_task(read_from_pty())
         write_task = asyncio.create_task(write_to_pty())
+        jail_task = asyncio.create_task(jail_enforcer())
 
         done, pending = await asyncio.wait(
-            [read_task, write_task],
+            [read_task, write_task, jail_task],
             return_when=asyncio.FIRST_COMPLETED
         )
 

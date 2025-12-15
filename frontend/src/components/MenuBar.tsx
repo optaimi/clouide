@@ -1,10 +1,11 @@
 // frontend/src/components/MenuBar.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Cloud, Download, FilePlus, Settings, Type, WrapText, Map, Skull } from 'lucide-react';
+import { Cloud, Download, FilePlus, Type, WrapText, Map, Skull, GitBranch, File } from 'lucide-react';
 import api from '../utils/api';
 
 interface MenuBarProps {
-  onReset: () => void;
+  onNewProject: () => void;
+  onCloneRepo: () => void;
   settings: {
     fontSize: number;
     wordWrap: boolean;
@@ -13,7 +14,7 @@ interface MenuBarProps {
   onUpdateSettings: (key: string, value: any) => void;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ onNewProject, onCloneRepo, settings, onUpdateSettings }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -64,11 +65,19 @@ const MenuBar: React.FC<MenuBarProps> = ({ onReset, settings, onUpdateSettings }
           File
         </button>
         {activeMenu === 'file' && (
-          <div className="absolute top-full left-0 mt-1 w-48 bg-ide-sidebar border border-ide-border rounded shadow-xl py-1 z-50">
-            <button onClick={onReset} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-accent/10 hover:text-ide-accent flex items-center gap-2 transition-colors">
-              <FilePlus size={12} /> New / Open...
+          <div className="absolute top-full left-0 mt-1 w-56 bg-ide-sidebar border border-ide-border rounded shadow-xl py-1 z-50">
+            <div className="px-4 py-1 text-[10px] uppercase text-ide-dim font-bold tracking-wider">New / Open</div>
+            
+            <button onClick={() => { onNewProject(); setActiveMenu(null); }} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-accent/10 hover:text-ide-accent flex items-center gap-2 transition-colors">
+              <File size={12} /> New Project...
             </button>
+            
+            <button onClick={() => { onCloneRepo(); setActiveMenu(null); }} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-accent/10 hover:text-ide-accent flex items-center gap-2 transition-colors">
+              <GitBranch size={12} /> Clone Repository...
+            </button>
+            
             <div className="h-px bg-ide-border my-1" />
+            
             <button onClick={handleDownload} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-accent/10 hover:text-ide-accent flex items-center gap-2 transition-colors">
               <Download size={12} /> Download Code
             </button>
