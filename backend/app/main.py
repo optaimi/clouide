@@ -1,10 +1,11 @@
-# backend/app/main.py (Part 1)
+# backend/app/main.py 
 from fastapi import FastAPI, HTTPException, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional, List, Set
+from typing import Optional, List, Dict, Set
+from collections import defaultdict
 import git
 import subprocess
 import shutil
@@ -13,8 +14,9 @@ import json
 import asyncio
 import struct
 import platform
+import re
 
-# --- OS-Specific Imports (Prevents Crash on Windows) ---
+# --- OS-Specific Imports ---
 try:
     import pty
     import fcntl
@@ -27,7 +29,6 @@ except ImportError:
 
 app = FastAPI()
 
-# --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,7 +38,8 @@ app.add_middleware(
 )
 
 # --- State Management ---
-active_terminals: Set[int] = set()
+# Maps session_id -> Set of PIDs
+session_terminals: Dict[str, Set[int]] = defaultdict(set)
 
 # --- Constants ---
 BASE_DIR = os.path.expanduser("~/clouide_workspaces")
@@ -45,23 +47,12 @@ BASE_DIR = os.path.expanduser("~/clouide_workspaces")
 # --- Security & Startup ---
 @app.on_event("startup")
 async def setup_security():
-    """
-    Security Hardening:
-    Sets the root workspace directory to Write+Execute ONLY (0o300).
-    - Write: Backend can create new session folders.
-    - Execute: Backend/Terminal can 'enter' specific session folders.
-    - NO READ: Prevents 'ls' from listing other users' session IDs.
-    """
     print(f"🚀 Backend starting. Workspaces root: {BASE_DIR}")
     try:
         os.makedirs(BASE_DIR, exist_ok=True)
-        # 0o300 = --wx------ (Owner: Write/Execute, No Read)
         if IS_UNIX:
             try:
                 os.chmod(BASE_DIR, 0o300)
-                print(f"🔒 Security: Locked down {BASE_DIR} with permissions 0o300")
-            except PermissionError:
-                print(f"⚠️ Warning: Could not set permissions on {BASE_DIR} (Permission Denied). Check Docker volume ownership.")
             except Exception as e:
                 print(f"⚠️ Warning: Could not set secure permissions: {e}")
     except Exception as e:
@@ -94,6 +85,19 @@ def get_credentials(session_id: str):
 def inject_auth(url: str, username: str, token: str):
     clean_url = url.replace("https://", "") if url.startswith("https://") else url
     return f"https://{username}:{token}@{clean_url}"
+
+def kill_session_processes(session_id: str):
+    """Kills all terminal processes associated with a session."""
+    if not IS_UNIX: return
+    pids = list(session_terminals[session_id])
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            print(f"Error killing PID {pid}: {e}")
+    session_terminals[session_id].clear()
 
 # --- Request Models ---
 class InitRequest(BaseModel):
@@ -156,37 +160,40 @@ def clone_repository(payload: CloneRequest, x_session_id: str = Header(...)):
     creds = get_credentials(x_session_id)
     
     try:
-        # Force clean the directory to prevent "Directory not empty" errors
+        # 1. Kill existing terminals to prevent freezing
+        kill_session_processes(x_session_id)
+
+        # 2. Clean workspace
         if os.path.exists(workspace):
             try:
                 shutil.rmtree(workspace)
             except OSError as e:
                 print(f"Delete error: {e}")
-                # Try creating it if it failed, or let clone fail naturally
                 
         os.makedirs(workspace, exist_ok=True)
 
         clone_url = payload.url
         if creds:
             clone_url = inject_auth(payload.url, creds['username'], creds['token'])
-            print(f"Cloning with auth for user {creds['username']}...")
-        else:
-            print(f"Cloning public repo...")
 
         git.Repo.clone_from(clone_url, workspace)
         return {"status": "success"}
     except Exception as e:
         error_msg = str(e)
-        # Sanitize common error messages for the frontend
+        # Parse GitPython error for cleaner output
         if "Authentication failed" in error_msg:
             safe_msg = "Authentication failed. Please check your token."
         elif "not found" in error_msg.lower():
             safe_msg = "Repository not found."
         else:
-            # Try to grab just the stderr if available
-            safe_msg = f"Clone failed: {error_msg.split('stderr:')[0].strip()}"
+            # Extract stderr from GitCommandError if possible
+            match = re.search(r"stderr: '(.+)'", error_msg, re.DOTALL)
+            if match:
+                safe_msg = f"Clone failed: {match.group(1).strip()}"
+            else:
+                # Fallback cleanup
+                safe_msg = f"Clone failed: {error_msg.split('cmdline:')[0].strip()}"
             
-        print(f"Clone Error: {e}")
         raise HTTPException(status_code=500, detail=safe_msg)
 
 @app.post("/init")
@@ -195,6 +202,10 @@ def init_workspace(payload: Optional[InitRequest] = None, x_session_id: str = He
     project_name = payload.project_name if payload else "my-project"
     
     try:
+        # 1. Kill existing terminals
+        kill_session_processes(x_session_id)
+
+        # 2. Clean workspace
         if os.path.exists(workspace):
             shutil.rmtree(workspace)
         os.makedirs(workspace, exist_ok=True)
@@ -247,9 +258,11 @@ codex explain src/index.ts
 3. Start coding!
 """
 
-        readme_path = os.path.join(workspace, "README.md")
+# Create Welcome File instead of README.md to avoid conflicts
+        readme_path = os.path.join(workspace, "Welcome.Clouide")
         with open(readme_path, "w") as f:
             f.write(readme_content)
+            
         return {"status": "success", "message": f"Workspace '{project_name}' initialized"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -365,26 +378,15 @@ def push_changes(payload: PushRequest, x_session_id: str = Header(...)):
 
 @app.post("/terminals/kill")
 def kill_all_terminals(x_session_id: str = Header(...)):
-    if not IS_UNIX:
-        return {"status": "error", "message": "Not supported on Windows/Non-Unix"}
-        
-    count = 0
-    for pid in list(active_terminals):
-        try:
-            os.kill(pid, signal.SIGKILL)
-            count += 1
-        except Exception:
-            pass 
-        finally:
-            active_terminals.discard(pid)
-    return {"status": "success", "message": f"Killed {count} terminal processes"}
+    kill_session_processes(x_session_id)
+    return {"status": "success", "message": "Terminals killed"}
 
 @app.websocket("/terminal/ws/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str):
     await websocket.accept()
     
     if not IS_UNIX:
-        await websocket.send_text("Error: Terminal not supported on this operating system (Windows?).\r\n")
+        await websocket.send_text("Error: Terminal not supported on this operating system.\r\n")
         await websocket.close()
         return
 
@@ -399,10 +401,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
     env = os.environ.copy()
     env["HOME"] = workspace
     env["TERM"] = "xterm-256color"
-    env["LANG"] = "C.UTF-8"
-    env["LC_ALL"] = "C.UTF-8"
-    env["BROWSER"] = "echo"
-
+    
     try:
         process = subprocess.Popen(
             ["/bin/bash"],
@@ -415,25 +414,26 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             close_fds=True
         )
         
-        active_terminals.add(process.pid)
+        session_terminals[session_id].add(process.pid)
         os.close(slave_fd)
         
         loop = asyncio.get_event_loop()
 
         # --- JAIL ENFORCER ---
         async def jail_enforcer():
-            """Monitors the shell process. If it leaves the workspace, kill it."""
             try:
                 while process.poll() is None:
-                    await asyncio.sleep(2)  # Check every 2 seconds
+                    await asyncio.sleep(2)
                     try:
-                        # Read the symlink /proc/[pid]/cwd to see where the shell actually is
-                        # This works reliably on Linux Docker containers
                         current_dir = os.readlink(f"/proc/{process.pid}/cwd")
-                        
-                        # Ensure current_dir starts with the workspace path
+                        # Handle "(deleted)" suffix if directory is wiped while terminal runs
+                        if current_dir.endswith(" (deleted)"):
+                            continue # Process will be killed by init/clone logic anyway
+                            
                         if not current_dir.startswith(workspace):
-                            await websocket.send_text(f"\r\n\x1b[1;31mSECURITY ALERT: Access denied to {current_dir}.\r\nSession terminated.\x1b[0m\r\n")
+                            # Sanitize path for user display
+                            safe_path = current_dir.replace(BASE_DIR, "~")
+                            await websocket.send_text(f"\r\n\x1b[1;31mSECURITY ALERT: Access denied to {safe_path}.\r\nSession terminated.\x1b[0m\r\n")
                             process.terminate()
                             break
                     except Exception:
@@ -446,20 +446,15 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             try:
                 while True:
                     data = await loop.run_in_executor(None, os.read, master_fd, 16384)
-                    if not data:
-                        break
+                    if not data: break
                     await websocket.send_text(data.decode(errors='replace'))
-            except Exception:
-                pass
+            except Exception: pass
 
         async def write_to_pty():
             try:
                 while True:
                     data = await websocket.receive_text()
-                    
-                    if data == '__ping__':
-                        continue
-
+                    if data == '__ping__': continue
                     try:
                         payload = json.loads(data)
                         if isinstance(payload, dict) and payload.get('type') == 'resize':
@@ -468,13 +463,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
                             winsize = struct.pack("HHHH", rows, cols, 0, 0)
                             fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
                             continue
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-
+                    except: pass
                     if data:
                          await loop.run_in_executor(None, os.write, master_fd, data.encode())
-            except Exception:
-                pass
+            except Exception: pass
 
         read_task = asyncio.create_task(read_from_pty())
         write_task = asyncio.create_task(write_to_pty())
@@ -484,21 +476,17 @@ async def terminal_websocket(websocket: WebSocket, session_id: str):
             [read_task, write_task, jail_task],
             return_when=asyncio.FIRST_COMPLETED
         )
-
-        for task in pending:
-            task.cancel()
+        for task in pending: task.cancel()
 
     except Exception as e:
         await websocket.send_text(f"\r\nTerminal Error: {str(e)}\r\n")
     finally:
-        if process.pid in active_terminals:
-            active_terminals.discard(process.pid)
+        if process.pid in session_terminals[session_id]:
+            session_terminals[session_id].discard(process.pid)
         try:
             process.terminate()
             os.close(master_fd)
-        except:
-            pass
-        print(f"Session {session_id} terminal closed")
+        except: pass
 
 @app.get("/download")
 def download_workspace(x_session_id: Optional[str] = Header(None), session_id: Optional[str] = Query(None)):

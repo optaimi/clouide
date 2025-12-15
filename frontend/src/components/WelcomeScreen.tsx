@@ -1,5 +1,6 @@
+// frontend/src/components/WelcomeScreen.tsx
 import React from 'react';
-import { Book, Terminal, Settings, Download, Save, Command } from 'lucide-react';
+import { Terminal, Settings, Save, Command } from 'lucide-react';
 
 const WelcomeScreen: React.FC = () => {
   return (
@@ -39,10 +40,6 @@ const WelcomeScreen: React.FC = () => {
               <li className="flex items-center justify-between">
                 <span>Toggle Terminal</span> 
                 <kbd className="bg-ide-activity px-2 py-0.5 rounded text-xs">Ctrl + `</kbd>
-              </li>
-              <li className="flex items-center justify-between">
-                <span>Command Palette</span> 
-                <kbd className="bg-ide-activity px-2 py-0.5 rounded text-xs">F1</kbd>
               </li>
             </ul>
           </div>

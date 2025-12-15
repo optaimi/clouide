@@ -27,6 +27,7 @@ const App: React.FC = () => {
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
+  const [terminalKey, setTerminalKey] = useState(0); // Force terminal remount
   
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -52,18 +53,29 @@ const App: React.FC = () => {
       }
     };
     checkSession();
+
+    // Global Keyboard Shortcut for Terminal Toggle (Ctrl + `)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault();
+        setIsTerminalOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleProjectLoaded = () => {
     setIsLoaded(true);
-    // Show Welcome/README by default
-    setActiveFile('README.md');
-    setOpenFiles(['README.md']);
-    // Close any open modals
+    // Show Welcome.Clouide if it exists, otherwise just clean state
+    setActiveFile('Welcome.Clouide');
+    setOpenFiles(['Welcome.Clouide']);
     setModalType(null);
     setNewProjectName('');
     setCloneUrl('');
     setModalError(null);
+    // Force terminal restart to connect to new shell
+    setTerminalKey(k => k + 1);
   };
 
   const handleFileOpen = (file: string) => {
@@ -97,7 +109,6 @@ const App: React.FC = () => {
       }
       await api.post('/init', { project_name: finalName });
       handleProjectLoaded();
-      // Force reload file explorer via a crude but effective method (unmount/remount key would be better, but this works given state reset)
       window.location.reload(); 
     } catch (err: any) {
       setModalError(err.response?.data?.detail || "Failed to create project");
@@ -121,7 +132,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Terminal Resize
   const startResizing = (mouseDownEvent: React.MouseEvent) => {
     mouseDownEvent.preventDefault();
     setIsDragging(true);
@@ -151,6 +161,8 @@ const App: React.FC = () => {
       <MenuBar 
         onNewProject={() => setModalType('new')}
         onCloneRepo={() => setModalType('clone')}
+        onOpenTerminal={() => setIsTerminalOpen(true)}
+        onRestartTerminal={() => setTerminalKey(k => k + 1)}
         onUpdateSettings={(key, val) => setEditorSettings(prev => ({ ...prev, [key]: val }))}
         settings={editorSettings}
       />
@@ -205,7 +217,7 @@ const App: React.FC = () => {
             </button>
           </div>
           
-          {activeFile === 'README.md' ? (
+          {activeFile === 'Welcome.Clouide' ? (
              <WelcomeScreen />
           ) : (
              <CodeEditor activeFile={activeFile} theme={currentTheme} settings={editorSettings} />
@@ -221,7 +233,7 @@ const App: React.FC = () => {
         style={{ height: isTerminalOpen ? `${terminalHeight}px` : '0px' }}
         className={`flex-shrink-0 bg-ide-bg overflow-hidden border-t border-ide-border ${isDragging ? '' : 'transition-[height] duration-300'}`}
       >
-        <Terminal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} theme={currentTheme} />
+        <Terminal key={terminalKey} isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} theme={currentTheme} />
       </div>
 
       {/* --- IN-PAGE MODALS --- */}
@@ -232,7 +244,6 @@ const App: React.FC = () => {
           <div className="bg-ide-sidebar border border-ide-border p-6 rounded-lg w-96 shadow-2xl">
             <h2 className="text-xl font-bold text-ide-text mb-4">Create New Project</h2>
             <p className="text-sm text-ide-dim mb-4">This will clear your current workspace.</p>
-            
             <input 
               type="text" 
               placeholder="Project Name (Optional)" 
@@ -240,16 +251,10 @@ const App: React.FC = () => {
               onChange={(e) => setNewProjectName(e.target.value)}
               className="w-full px-3 py-2 bg-ide-bg border border-ide-border rounded mb-4 text-ide-text focus:border-ide-accent focus:outline-none"
             />
-            
             {modalError && <div className="text-red-400 text-xs mb-4">{modalError}</div>}
-            
             <div className="flex justify-end gap-2">
               <button onClick={() => setModalType(null)} className="px-4 py-2 text-sm text-ide-dim hover:text-ide-text">Cancel</button>
-              <button 
-                onClick={executeNewProject} 
-                disabled={modalLoading}
-                className="px-4 py-2 text-sm bg-ide-accent hover:bg-ide-accent/80 text-white rounded flex items-center gap-2"
-              >
+              <button onClick={executeNewProject} disabled={modalLoading} className="px-4 py-2 text-sm bg-ide-accent hover:bg-ide-accent/80 text-white rounded flex items-center gap-2">
                 {modalLoading && <Loader2 size={14} className="animate-spin" />} Create
               </button>
             </div>
@@ -263,7 +268,6 @@ const App: React.FC = () => {
           <div className="bg-ide-sidebar border border-ide-border p-6 rounded-lg w-96 shadow-2xl">
             <h2 className="text-xl font-bold text-ide-text mb-4">Clone Repository</h2>
             <p className="text-sm text-ide-dim mb-4">Enter a public git URL. This will clear your current workspace.</p>
-            
             <input 
               type="text" 
               placeholder="[https://github.com/username/repo.git](https://github.com/username/repo.git)" 
@@ -271,16 +275,10 @@ const App: React.FC = () => {
               onChange={(e) => setCloneUrl(e.target.value)}
               className="w-full px-3 py-2 bg-ide-bg border border-ide-border rounded mb-4 text-ide-text focus:border-ide-accent focus:outline-none"
             />
-            
             {modalError && <div className="text-red-400 text-xs mb-4">{modalError}</div>}
-            
             <div className="flex justify-end gap-2">
               <button onClick={() => setModalType(null)} className="px-4 py-2 text-sm text-ide-dim hover:text-ide-text">Cancel</button>
-              <button 
-                onClick={executeClone} 
-                disabled={modalLoading || !cloneUrl}
-                className="px-4 py-2 text-sm bg-[#a174ff] hover:bg-[#8854e0] text-white rounded flex items-center gap-2"
-              >
+              <button onClick={executeClone} disabled={modalLoading || !cloneUrl} className="px-4 py-2 text-sm bg-[#a174ff] hover:bg-[#8854e0] text-white rounded flex items-center gap-2">
                 {modalLoading && <Loader2 size={14} className="animate-spin" />} Clone
               </button>
             </div>

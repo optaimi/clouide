@@ -1,11 +1,13 @@
 // frontend/src/components/MenuBar.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Cloud, Download, FilePlus, Type, WrapText, Map, Skull, GitBranch, File } from 'lucide-react';
+import { Cloud, Download, FilePlus, Type, WrapText, Map, Skull, GitBranch, File, Terminal as TerminalIcon, RotateCw } from 'lucide-react';
 import api from '../utils/api';
 
 interface MenuBarProps {
   onNewProject: () => void;
   onCloneRepo: () => void;
+  onOpenTerminal: () => void;
+  onRestartTerminal: () => void;
   settings: {
     fontSize: number;
     wordWrap: boolean;
@@ -14,7 +16,7 @@ interface MenuBarProps {
   onUpdateSettings: (key: string, value: any) => void;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onNewProject, onCloneRepo, settings, onUpdateSettings }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ onNewProject, onCloneRepo, onOpenTerminal, onRestartTerminal, settings, onUpdateSettings }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +43,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onNewProject, onCloneRepo, settings, 
     if (confirm("Kill all active terminal processes? This will stop any running commands.")) {
       try {
         await api.post('/terminals/kill');
-        window.location.reload(); 
+        onRestartTerminal(); // Also restart the UI to reconnect immediately
       } catch (err) {
         console.error("Failed to kill terminals", err);
       }
@@ -117,11 +119,29 @@ const MenuBar: React.FC<MenuBarProps> = ({ onNewProject, onCloneRepo, settings, 
               <div className="flex items-center gap-2"><Map size={12} /> Minimap</div>
               {settings.minimap && <div className="w-2 h-2 rounded-full bg-ide-accent" />}
             </button>
+          </div>
+        )}
+      </div>
 
+      {/* NEW: Terminal Menu */}
+      <div className="relative">
+        <button 
+          onClick={() => toggleMenu('terminal')}
+          className={`px-3 py-1 text-xs hover:bg-ide-activity rounded transition-colors ${activeMenu === 'terminal' ? 'bg-ide-activity text-ide-text' : 'text-ide-dim'}`}
+        >
+          Terminal
+        </button>
+        {activeMenu === 'terminal' && (
+          <div className="absolute top-full left-0 mt-1 w-56 bg-ide-sidebar border border-ide-border rounded shadow-xl py-1 z-50">
+            <button onClick={() => { onOpenTerminal(); setActiveMenu(null); }} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-activity flex items-center gap-2 transition-colors">
+              <TerminalIcon size={12} /> Open Terminal
+            </button>
+            <button onClick={() => { onRestartTerminal(); setActiveMenu(null); }} className="w-full text-left px-4 py-2 text-xs text-ide-text hover:bg-ide-activity flex items-center gap-2 transition-colors">
+              <RotateCw size={12} /> Restart Terminal
+            </button>
             <div className="h-px bg-ide-border my-1" />
-            
             <button onClick={handleKillTerminals} className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors">
-              <Skull size={12} /> Kill Terminals
+              <Skull size={12} /> Kill Terminal
             </button>
           </div>
         )}
