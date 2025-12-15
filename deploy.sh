@@ -41,13 +41,9 @@ sudo chmod -R 777 "$APP_DIR/workspaces"
 # --- 5. Launch Services ---
 echo "🛑  Force-removing old containers..."
 
-# 1. Forcefully remove the specific backend container if it exists
-# We use '|| true' so the script doesn't crash if the container is already gone.
+# KILL THEM NOW (So they can't respawn during the build)
 sudo docker rm -f clouide_app_backend_1 2>/dev/null || true
-
-# 2. Safety Net: Find and kill ANY container starting with 'clouide'
-# This cleans up any leftovers that might have different names
-sudo docker ps -a --filter "name=clouide" -q | xargs -r sudo docker rm -f
+sudo docker ps -a -q --filter "name=clouide" | xargs -r sudo docker rm -f
 
 echo "🚀  Launching containers..."
 
@@ -57,8 +53,7 @@ else
     DC="docker compose"
 fi
 
-# Now we just 'up'. Since we killed everything above, there is nothing to 'stop' or 'recreate'.
-# Docker will just create fresh containers.
+# Just 'up' (No 'down' needed because we killed them manually)
 sudo $DC up -d --build --remove-orphans
 
 echo "=========================================="
