@@ -1,100 +1,173 @@
-# Clouide
+# ☁️ Clouide
 
-**Clouide** is a full-stack, browser-based integrated development environment designed to run securely on cloud infrastructure. It features a modern React frontend, a powerful FastAPI backend, and runs entirely within Docker containers to ensure security and user isolation.
+**Clouide** is a cloud-native Integrated Development Environment (IDE) that runs entirely in your browser. It combines a modern React frontend with a secure FastAPI backend, orchestrated via Docker to provide a safe, isolated coding workspace.
 
-## 🚀 Features
+It comes pre-configured with powerful **Agentic AI tools**, making it the perfect sandbox for testing LLMs and agentic workflows alongside standard development tasks.
 
-- **Full-Featured Code Editor**: Powered by [Monaco Editor](https://microsoft.github.io/monaco-editor/) (VS Code's engine) with syntax highlighting and minimap.
-- **File Management**: Create, rename, delete, and organise files and folders via the sidebar explorer.
-- **Integrated Terminal**: Secure web-based terminal that executes commands inside an isolated container (running as non-root user `coder`).
+## 🚀 Key Features
+
+### 🤖 Agentic AI Environment
+The terminal comes pre-installed with industry-standard AI assistants, running securely in the isolated container:
+
+- **Gemini CLI** – Leverages a massive context window and native multimodal capabilities to analyse entire repositories and complex media inputs.
+- **Claude Code** – Functions as an autonomous agentic partner capable of planning, executing, and verifying complex software engineering workflows.
+- **OpenAI Codex** – Harnesses the industry-leading reasoning of the models behind GitHub Copilot for deep semantic code understanding.
+- **OpenCode** – Offers a transparent, open-source alternative that prioritises developer control, privacy, and model flexibility.
+
+### 💻 Full-Featured Editor
+
+- **Monaco Engine** – Powered by the same editor engine as VS Code.
+- **Smart Features** – Syntax highlighting, minimap, and dynamic font sizing.
+- **Multi-Theme** – Switch instantly between **Dark**, **Light**, and **Midnight** themes.
+
+### 🛡️ Secure & Isolated
+
+- **Docker Sandbox** – Every session runs in an isolated container.
+- **Non-Root Execution** – Commands run as a restricted coder user to protect the host system.
+- **Path Validation** – Backend enforces strict path checking to prevent directory traversal attacks.
+
+### 🔧 Powerful Tools
+
+- **Integrated Terminal** – Full xterm.js shell with support for clickable links and resizing.
 - **Git Integration**:
-  - Clone public and private repositories.
-  - Initialise new git projects.
+  - Clone public or **private** repositories (using Personal Access Tokens).
   - Stage, commit, and push changes directly from the UI.
-  - Secure credential management for private GitHub repos.
-- **Multi-Theme Support**: Switch between Dark, Light, and Midnight themes.
-- **Dockerised Architecture**: Backend runs in an isolated Docker container to prevent unauthorised access to the host machine.
+  - Persistent credential storage per session.
+- **File Management** – Create, rename, delete, and download workspace archives.
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **Framework**: React 18 + Vite
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand
-- **Editor**: @monaco-editor/react
-- **Icons**: Lucide React
+**Frontend**
 
-### Backend
-- **Framework**: FastAPI (Python 3.11)
-- **Server**: Uvicorn
-- **Tools**: GitPython, Subprocess
-- **Isolation**: Docker & Docker Compose
+- React 18 + Vite
+- Tailwind CSS (Styling)
+- Lucide React (Icons)
+- Xterm.js (Terminal emulator)
+- Monaco Editor React
 
-## 📋 Prerequisites
+**Backend**
 
-- **OS**: Linux (Debian/Ubuntu recommended) or macOS.
-- **Docker & Docker Compose**: Required for containerisation.
-- **Node.js & npm**: Required to build the frontend assets locally before deployment.
+- Python 3.11 + FastAPI
+- GitPython (Git operations)
+- Uvicorn (ASGI Server)
+- WebSockets (Real-time terminal streaming)
+
+**Infrastructure**
+
+- Docker & Docker Compose
+- Nginx / Node.js (Static serving)
 
 ## 📦 Installation & Deployment
 
-This project includes a `deploy.sh` script that automates the entire build and deployment process.
+Clouide includes an automated deployment script that handles building the frontend, setting up permissions, and launching the containers.
 
-1. **Clone the Repository**
-   ```bash
-   git clone <your-repo-url>
-   cd clouide_app
+### Prerequisites
 
-2.  **Make the Deploy Script Executable**
+- Docker & Docker Compose
+- Git
+- Node.js & npm (for building the frontend assets)
 
-    ```bash
-    chmod +x deploy.sh
+### Quick Start
 
-3.  **Run the Deployment**
-    This script will:
-      - Pull the latest changes from Git.
-      - Build the React frontend locally.
-      - Stop any running containers.
-      - Rebuild and launch the Docker containers with correct permissions.
+1. **Clone the repository**
 
-    <!-- end list -->
+```bash
+git clone https://github.com/optaimi/Clouide
+cd Clouide
+```
 
-    ```bash
-    ./deploy.sh
-    ```
+2. **Run the deploy script**
 
-4.  **Access the IDE**
+This script builds the React app and starts the Docker services.
 
-      - **Localhost**: Visit `http://localhost:8000`
-      - **Remote/Cloud**: Use `ngrok` or your VM's external IP.
-        ```bash
-        ngrok http 8000
-        ```
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
 
-## 🔒 Security Architecture
+3. **Access the IDE**
 
-To ensure security when running on a cloud VM:
+Open your browser and navigate to:
 
-  - **User Isolation**: The backend runs inside a Docker container as a generic user named `coder`. This prevents the web terminal from accessing root files or your cloud provider credentials.
-  - **Volume Mapping**: User projects are persisted in a local `workspaces/` directory, which is mounted into the container with restricted permissions.
-  - **Frontend Mounting**: The frontend build artifacts (`dist/`) are mounted read-only into the container for serving.
+`http://localhost:8000`
+
+## 📖 Usage Guide
+
+### Using AI Tools
+
+Open the terminal and use the pre-installed CLIs.
+
+First, launch the CLI and set up auth/API:
+
+- **Gemini CLI**:
+
+```bash
+gemini
+```
+
+- **Claude Code**:
+
+```bash
+claude
+```
+
+- **Codex CLI**:
+
+```bash
+codex
+```
+
+- **Opencode CLI**:
+
+```bash
+opencode
+```
+
+Once authenticated you can use them freely for that session. All data is stored securely and associated with your session, wiped daily.
+
+**Example uses**
+
+- **Ask Gemini a question**
+
+```bash
+gemini chat "How do React hooks work?"
+```
+
+- **Use Claude for coding**
+
+```bash
+claude "Write a Python script to parse CSV files"
+```
+
+### Working with Private Repos
+
+1. Click **Clone Repository**.
+2. Enter the HTTPS URL of your repository.
+3. Click the **Private repo?** link to enter your GitHub username and **Personal Access Token (PAT)**.
+4. Your credentials are securely stored for the duration of the session.
+
+### Customising the View
+
+- Use the **View** menu to toggle Word Wrap or the Minimap.
+- Use the **Settings (gear icon)** in the sidebar to change the active theme.
 
 ## 📂 Project Structure
 
 ```text
 .
-├── backend/                # FastAPI Application
-│   ├── app/main.py         # API Endpoints & Logic
-│   └── requirements.txt    # Python Dependencies
-├── frontend/               # React Application
-│   ├── src/                # Components & Hooks
-│   ├── dist/               # Built static files (generated)
-│   └── vite.config.ts      # Vite Configuration
-├── deploy.sh               # Automated deployment script
-├── docker-compose.yml      # Container orchestration config
-└── Dockerfile              # Backend container definition
+├── backend/                # FastAPI application & logic
+│   ├── app/main.py         # API endpoints (Git, files, terminal)
+│   └── requirements.txt    # Python dependencies
+├── frontend/               # React application
+│   ├── src/components/     # UI components (terminal, editor, file explorer)
+│   ├── public/             # Static assets (favicon, manifest)
+│   └── vite.config.ts      # Build configuration
+├── workspaces/             # Persisted user project data (Docker volume)
+├── deploy.sh               # One-click deployment script
+├── docker-compose.yml      # Service orchestration
+└── Dockerfile              # Container definition
 ```
 
-## 📄 Licence
+## 📄 License
 
-Distributed under the MIT Licence. See `LICENSE` for more information.
+Distributed under the MIT License. See `LICENSE` for more information.

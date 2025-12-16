@@ -11,8 +11,7 @@ services:
       # 1. Persist workspaces
       - ./workspaces:/home/coder/clouide_workspaces
       
-      # 2. MOUNT THE FRONTEND BUILD (This is the fix)
-      # Maps your local 'dist' folder to '/frontend/dist' inside the container
+      # 2. MOUNT THE FRONTEND BUILD
       - ./frontend/dist:/frontend/dist
     environment:
       - PYTHONUNBUFFERED=1
