@@ -1,4 +1,3 @@
-// frontend/src/components/CodeEditor.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { Save, Check, AlertCircle } from 'lucide-react';

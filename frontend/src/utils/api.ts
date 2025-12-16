@@ -1,4 +1,3 @@
-// frontend/src/utils/api.ts
 import axios from 'axios';
 
 // 1. Get or Create Session ID

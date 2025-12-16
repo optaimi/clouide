@@ -1,4 +1,3 @@
-# backend/app/main.py 
 from fastapi import FastAPI, HTTPException, Header, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

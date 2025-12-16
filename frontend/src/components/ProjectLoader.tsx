@@ -1,4 +1,3 @@
-// frontend/src/components/ProjectLoader.tsx
 import React, { useState } from 'react';
 import { GitBranch, Loader2, FilePlus, ArrowLeft, Cloud, KeyRound, TerminalSquare, CheckCircle } from 'lucide-react';
 import api from '../utils/api';

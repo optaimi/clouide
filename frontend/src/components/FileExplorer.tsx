@@ -1,4 +1,3 @@
-// frontend/src/components/FileExplorer.tsx
 import React, { useEffect, useState } from 'react';
 import { FileCode, RefreshCw, FilePlus, Trash2, Edit2 } from 'lucide-react';
 import api from '../utils/api';

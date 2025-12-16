@@ -1,4 +1,3 @@
-// frontend/src/App.tsx
 import React, { useState, useEffect } from 'react';
 import ProjectLoader from './components/ProjectLoader';
 import FileExplorer from './components/FileExplorer';

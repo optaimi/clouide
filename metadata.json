@@ -1,5 +1,5 @@
 {
-  "name": "Nebula Cloud IDE",
-  "description": "A full-stack Monorepo Cloud IDE using React, FastAPI, GitPython, and Google Cloud Storage.",
+  "name": "Clouide - Cloud Native IDE",
+  "description": "A full-stack Monorepo browser-based IDE using React, FastAPI, GitPython, and Google Cloud Storage.",
   "requestFramePermissions": []
 }

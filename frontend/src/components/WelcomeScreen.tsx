@@ -1,4 +1,3 @@
-// frontend/src/components/WelcomeScreen.tsx
 import React from 'react';
 import { Terminal, Settings, Save, Command } from 'lucide-react';
 

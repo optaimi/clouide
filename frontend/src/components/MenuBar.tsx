@@ -1,4 +1,3 @@
-// frontend/src/components/MenuBar.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Cloud, Download, FilePlus, Type, WrapText, Map, Skull, GitBranch, File, Terminal as TerminalIcon, RotateCw } from 'lucide-react';
 import api from '../utils/api';

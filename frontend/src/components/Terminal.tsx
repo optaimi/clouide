@@ -1,4 +1,3 @@
-// frontend/src/components/Terminal.tsx
 import React, { useEffect, useRef } from 'react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';

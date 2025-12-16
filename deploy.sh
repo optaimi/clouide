@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# --- 0. SUPER NUCLEAR FIX: Kill Processes Directly ---
+# If Docker is stuck, we find the process IDs of the containers and kill them via the OS.
+echo "☠️  Hunting down stuck Docker processes..."
+# Find PIDs of processes related to 'clouide' containers and kill them
+pgrep -f "clouide_app" | xargs -r sudo kill -9
 # --- Auto-detect paths ---
 APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo "🚀 Starting Deployment..."
