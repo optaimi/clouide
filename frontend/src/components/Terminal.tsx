@@ -27,15 +27,17 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
   };
 
   const fitTerminal = () => {
-     if (!fitAddonRef.current || !xtermRef.current || !wsRef.current) return;
-     try {
-       fitAddonRef.current.fit();
-       const cols = xtermRef.current.cols;
-       const rows = xtermRef.current.rows;
-       if (wsRef.current.readyState === WebSocket.OPEN) {
-         wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
-       }
-     } catch (e) { console.error("Fit error", e); }
+    if (!fitAddonRef.current || !xtermRef.current || !wsRef.current) return;
+    try {
+      fitAddonRef.current.fit();
+      const cols = xtermRef.current.cols;
+      const rows = xtermRef.current.rows;
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
+      }
+    } catch (e) {
+      console.error('Fit error', e);
+    }
   };
 
   useEffect(() => {
@@ -65,17 +67,19 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: themes[theme],
         allowProposedApi: true,
-        cols: 120, 
+        cols: 120,
       });
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
-      
+
       // 1. Enable Clickable Links
-      term.loadAddon(new WebLinksAddon()); 
+      term.loadAddon(new WebLinksAddon());
 
       term.open(terminalRef.current);
-      try { fitAddon.fit(); } catch (e) {}
+      try {
+        fitAddon.fit();
+      } catch (e) {}
 
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
@@ -92,7 +96,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
       ws.onopen = () => {
         // 2. Display Welcome Banner with AI Tools
         term.write('\x1b[2J\x1b[0;0H');
-        
+
         term.writeln('\x1b[1;32mWelcome to Clouide Terminal\x1b[0m');
         term.writeln('------------------------------------------------');
         term.writeln('\x1b[1;34mAI Tools Available:\x1b[0m');
@@ -121,7 +125,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
         term.writeln('\r\n\x1b[33mDisconnected.\x1b[0m');
         if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       };
-      
+
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(data);
       });
@@ -146,15 +150,18 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, theme }) => {
 
   useEffect(() => {
     if (isOpen) {
-       const timers = [50, 150, 300, 500].map(t => setTimeout(() => fitTerminal(), t));
-       return () => timers.forEach(t => clearTimeout(t));
+      const timers = [50, 150, 300, 500].map((t) => setTimeout(() => fitTerminal(), t));
+      return () => timers.forEach((t) => clearTimeout(t));
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="h-full flex flex-col border-t border-ide-border" style={{ backgroundColor: themes[theme].background }}>
+    <div
+      className="h-full flex flex-col border-t border-ide-border"
+      style={{ backgroundColor: themes[theme].background }}
+    >
       <div className="flex justify-between items-center px-4 py-1 bg-ide-sidebar border-b border-ide-border select-none min-h-[30px]">
         <div className="flex items-center gap-2 text-ide-text text-xs font-bold uppercase tracking-wider">
           <TerminalSquare size={14} /> Terminal

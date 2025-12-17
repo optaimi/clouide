@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { GitBranch, Loader2, FilePlus, ArrowLeft, Cloud, KeyRound, TerminalSquare, CheckCircle } from 'lucide-react';
+import {
+  GitBranch,
+  Loader2,
+  FilePlus,
+  ArrowLeft,
+  Cloud,
+  KeyRound,
+  TerminalSquare,
+  CheckCircle,
+} from 'lucide-react';
 import api from '../utils/api';
 import Terminal from './Terminal';
 
@@ -43,7 +52,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
       await api.post('/init', { project_name: finalName });
       onProjectLoaded();
     } catch (err: any) {
-      setError("Failed to initialize workspace");
+      setError('Failed to initialize workspace');
       setIsLoading(false);
     }
   };
@@ -62,11 +71,11 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
       let rawMsg = err.response?.data?.detail || 'Failed to clone repository';
 
       if (rawMsg.includes('exit code(128)') || rawMsg.includes('could not read Username')) {
-        rawMsg = "Access Denied: This repository is private or does not exist. Please login.";
+        rawMsg = 'Access Denied: This repository is private or does not exist. Please login.';
       } else if (rawMsg.includes('Authentication failed')) {
-        rawMsg = "Authentication failed. Please check your token.";
+        rawMsg = 'Authentication failed. Please check your token.';
       } else if (rawMsg.includes('already exists')) {
-        rawMsg = "A project is already loaded. Please reset first.";
+        rawMsg = 'A project is already loaded. Please reset first.';
       }
 
       setError(rawMsg);
@@ -82,7 +91,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
     setError(null);
     try {
       await api.post('/login', { username, token });
-      setSuccessMsg("Credentials saved! You can now clone private repos.");
+      setSuccessMsg('Credentials saved! You can now clone private repos.');
       setTimeout(() => {
         setSuccessMsg(null);
         setView('clone');
@@ -98,7 +107,6 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
     <div className="flex h-screen w-screen bg-ide-bg text-ide-text transition-colors duration-200 flex-col">
       <div className="flex-1 flex items-center justify-center overflow-y-auto">
         <div className="w-full max-w-2xl p-8">
-          
           <div className="flex flex-col items-center mb-12">
             <div className="p-4 bg-ide-accent/10 rounded-full mb-4">
               <Cloud size={48} className="text-ide-accent" />
@@ -135,7 +143,10 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
           {view === 'new_project' && (
             <div className="max-w-md mx-auto bg-ide-sidebar p-8 rounded-xl border border-ide-border shadow-2xl relative">
-              <button onClick={() => setView('menu')} className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text">
+              <button
+                onClick={() => setView('menu')}
+                className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text"
+              >
                 <ArrowLeft size={20} />
               </button>
 
@@ -148,7 +159,9 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">Project Name (Optional)</label>
+                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">
+                    Project Name (Optional)
+                  </label>
                   <input
                     type="text"
                     value={projectName}
@@ -161,14 +174,22 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                   </p>
                 </div>
 
-                {error && <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>}
+                {error && (
+                  <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>
+                )}
 
                 <button
                   onClick={handleNewProject}
                   disabled={isLoading}
                   className="w-full py-3 bg-ide-accent hover:bg-ide-accent/80 disabled:opacity-50 text-white font-medium rounded flex items-center justify-center gap-2"
                 >
-                  {isLoading ? <><Loader2 size={18} className="animate-spin" /> Creating...</> : 'Create Project'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" /> Creating...
+                    </>
+                  ) : (
+                    'Create Project'
+                  )}
                 </button>
               </div>
             </div>
@@ -176,7 +197,10 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
           {view === 'clone' && (
             <div className="max-w-md mx-auto bg-ide-sidebar p-8 rounded-xl border border-ide-border shadow-2xl relative">
-              <button onClick={() => setView('menu')} className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text">
+              <button
+                onClick={() => setView('menu')}
+                className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text"
+              >
                 <ArrowLeft size={20} />
               </button>
 
@@ -197,7 +221,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                 />
 
                 <div className="flex justify-end">
-                  <button 
+                  <button
                     onClick={() => setView('login')}
                     className="text-xs text-[#a174ff] hover:underline flex items-center gap-1"
                   >
@@ -205,15 +229,27 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                   </button>
                 </div>
 
-                {error && <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>}
-                {successMsg && <div className="text-green-400 text-xs bg-green-400/10 p-3 rounded flex items-center gap-2"><CheckCircle size={14} /> {successMsg}</div>}
+                {error && (
+                  <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>
+                )}
+                {successMsg && (
+                  <div className="text-green-400 text-xs bg-green-400/10 p-3 rounded flex items-center gap-2">
+                    <CheckCircle size={14} /> {successMsg}
+                  </div>
+                )}
 
                 <button
                   onClick={handleClone}
                   disabled={isLoading || !repoUrl}
                   className="w-full py-3 bg-[#a174ff] hover:bg-[#8854e0] disabled:opacity-50 text-white font-medium rounded flex items-center justify-center gap-2"
                 >
-                  {isLoading ? <><Loader2 size={18} className="animate-spin" /> Cloning...</> : 'Clone Project'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" /> Cloning...
+                    </>
+                  ) : (
+                    'Clone Project'
+                  )}
                 </button>
               </div>
             </div>
@@ -221,7 +257,10 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
           {view === 'login' && (
             <div className="max-w-md mx-auto bg-ide-sidebar p-8 rounded-xl border border-ide-border shadow-2xl relative">
-              <button onClick={() => setView('clone')} className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text">
+              <button
+                onClick={() => setView('clone')}
+                className="absolute top-4 left-4 p-2 hover:bg-ide-activity rounded-full text-ide-dim hover:text-ide-text"
+              >
                 <ArrowLeft size={20} />
               </button>
 
@@ -235,7 +274,9 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">Username</label>
+                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">
+                    Username
+                  </label>
                   <input
                     type="text"
                     value={username}
@@ -244,7 +285,9 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                   />
                 </div>
                 <div>
-                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">Personal Access Token</label>
+                  <label className="text-xs uppercase font-bold text-ide-dim mb-1 block">
+                    Personal Access Token
+                  </label>
                   <input
                     type="password"
                     value={token}
@@ -253,14 +296,22 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
                   />
                 </div>
 
-                {error && <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>}
+                {error && (
+                  <div className="text-red-400 text-xs bg-red-400/10 p-3 rounded">{error}</div>
+                )}
 
                 <button
                   onClick={handleLogin}
                   disabled={isLoading || !username || !token}
                   className="w-full py-3 bg-ide-accent hover:bg-ide-accent/80 disabled:opacity-50 text-white font-medium rounded flex items-center justify-center gap-2"
                 >
-                  {isLoading ? <><Loader2 size={18} className="animate-spin" /> Authenticating...</> : 'Save Credentials'}
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" /> Authenticating...
+                    </>
+                  ) : (
+                    'Save Credentials'
+                  )}
                 </button>
               </div>
             </div>
@@ -269,7 +320,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
       </div>
 
       <div className="absolute bottom-4 right-4 z-50">
-        <button 
+        <button
           onClick={() => setIsTerminalOpen(!isTerminalOpen)}
           className="p-3 bg-ide-sidebar border border-ide-border rounded-full shadow-lg hover:bg-ide-activity text-ide-dim hover:text-ide-text transition-all"
           title="Toggle Terminal"
@@ -278,7 +329,7 @@ const ProjectLoader: React.FC<ProjectLoaderProps> = ({ onProjectLoaded }) => {
         </button>
       </div>
 
-      <div 
+      <div
         style={{ height: isTerminalOpen ? '300px' : '0px' }}
         className="flex-shrink-0 bg-ide-bg overflow-hidden border-t border-ide-border transition-[height] duration-300 ease-in-out"
       >
