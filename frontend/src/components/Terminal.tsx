@@ -1,6 +1,3 @@
-type: uploaded file
-fileName: optaimi/clouide/optaimi-Clouide-52b704295fa97990c607eaae8a7e7e8a54540950/frontend/src/components/Terminal.tsx
-fullContent:
 import React, { useEffect, useRef } from 'react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
