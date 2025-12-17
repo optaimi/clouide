@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# ==========================================
+# 🚩 DEPLOYMENT CONFIGURATION
+# ==========================================
+# Change this to 'main' or 'dev' to switch branches easily
+DEPLOY_BRANCH="dev"
+# ==========================================
+
 # --- 0. SUPER NUCLEAR FIX: Kill Processes Directly ---
 # If Docker is stuck, we find the process IDs of the containers and kill them via the OS.
 echo "☠️  Hunting down stuck Docker processes..."
@@ -7,14 +14,16 @@ echo "☠️  Hunting down stuck Docker processes..."
 pgrep -f "clouide_app" | xargs -r sudo kill -9
 # --- Auto-detect paths ---
 APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-echo "🚀 Starting Deployment..."
+echo "🚀 Starting Deployment for branch: $DEPLOY_BRANCH"
 
 # --- 1. Force Sync with Git ---
-echo "⬇️  Syncing with GitHub..."
+echo "⬇️  Syncing with GitHub ($DEPLOY_BRANCH)..."
 cd "$APP_DIR"
 git fetch --all
-##git reset --hard origin/main
-git reset --hard origin/dev
+
+# Uses the variable defined at the top
+git reset --hard "origin/$DEPLOY_BRANCH"
+
 chmod +x scripts/*.sh
 
 # --- 2. Build Frontend FIRST ---
@@ -62,5 +71,5 @@ echo "   Using command: $DC"
 sudo $DC up -d --build --remove-orphans --force-recreate
 
 echo "=========================================="
-echo "✅ Deployment Complete! App is live."
+echo "✅ Deployment Complete! App is live on branch: $DEPLOY_BRANCH"
 echo "=========================================="
