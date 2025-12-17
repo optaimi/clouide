@@ -1,0 +1,14 @@
+[tool.ruff]
+# Target Python version
+target-version = "py311"
+
+# Same line length as Prettier for consistency
+line-length = 100
+
+[tool.ruff.lint]
+# Enable Pyflakes (F), pycodestyle (E, W), and isort (I)
+select = ["E", "F", "W", "I"]
+ignore = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -10,7 +8,7 @@ services:
     volumes:
       # 1. Persist workspaces
       - ./workspaces:/home/coder/clouide_workspaces
-      
+
       # 2. MOUNT THE FRONTEND BUILD
       - ./frontend/dist:/frontend/dist
     environment:
