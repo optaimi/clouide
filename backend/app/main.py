@@ -26,6 +26,9 @@ except ImportError:
     IS_UNIX = False
     print("⚠️ Warning: Non-Unix OS detected. Terminal features will be disabled.")
 
+# --- BUG FIX: Prevent Git from hanging on password prompt ---
+os.environ["GIT_TERMINAL_PROMPT"] = "0"
+
 app = FastAPI()
 
 app.add_middleware(

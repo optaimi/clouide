@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ProjectLoader from './components/ProjectLoader';
 import FileExplorer from './components/FileExplorer';
-import CodeEditor from './components/CodeEditor';
+import CodeEditor, { CodeEditorHandle } from './components/CodeEditor'; // Updated import
 import Terminal from './components/Terminal';
 import MenuBar from './components/MenuBar';
 import WelcomeScreen from './components/WelcomeScreen';
@@ -13,6 +13,9 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
+
+  // Ref to access the CodeEditor's save method
+  const editorRef = useRef<CodeEditorHandle>(null);
 
   // Editor settings
   const [currentTheme, setCurrentTheme] = useState<Theme>('dark');
@@ -26,7 +29,7 @@ const App: React.FC = () => {
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
-  const [terminalKey, setTerminalKey] = useState(0); // Force terminal remount
+  const [terminalKey, setTerminalKey] = useState(0); 
   
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -97,8 +100,13 @@ const App: React.FC = () => {
   };
 
   // --- Run Code Logic ---
-  const handleRunCode = () => {
+  const handleRunCode = async () => {
     if (!activeFile) return;
+
+    // 1. Force Save before running
+    if (editorRef.current) {
+      await editorRef.current.save();
+    }
     
     // Ensure terminal is open
     if (!isTerminalOpen) setIsTerminalOpen(true);
@@ -252,7 +260,12 @@ const App: React.FC = () => {
           {activeFile === 'Welcome.Clouide' ? (
              <WelcomeScreen />
           ) : (
-             <CodeEditor activeFile={activeFile} theme={currentTheme} settings={editorSettings} />
+             <CodeEditor 
+               ref={editorRef} // Attach Ref Here
+               activeFile={activeFile} 
+               theme={currentTheme} 
+               settings={editorSettings} 
+             />
           )}
         </div>
       </div>
@@ -302,7 +315,7 @@ const App: React.FC = () => {
             <p className="text-sm text-ide-dim mb-4">Enter a public git URL. This will clear your current workspace.</p>
             <input 
               type="text" 
-              placeholder="[https://github.com/username/repo.git](https://github.com/username/repo.git)" 
+              placeholder="https://github.com/username/repo.git" 
               value={cloneUrl}
               onChange={(e) => setCloneUrl(e.target.value)}
               className="w-full px-3 py-2 bg-ide-bg border border-ide-border rounded mb-4 text-ide-text focus:border-ide-accent focus:outline-none"

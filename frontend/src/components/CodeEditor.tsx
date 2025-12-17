@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { Save, Check, AlertCircle } from 'lucide-react';
 import api from '../utils/api';
@@ -14,8 +14,13 @@ interface CodeEditorProps {
   };
 }
 
-// 2. Updated Component Definition to destructure 'settings'
-const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) => {
+// Interface for the exposed ref methods
+export interface CodeEditorHandle {
+  save: () => Promise<void>;
+}
+
+// 2. Updated Component Definition to destructure 'settings' and use forwardRef
+const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(({ activeFile, theme, settings }, ref) => {
   // Content shown in the editor window.
   const [content, setContent] = useState<string>("// Select a file to view content");
   // Flags to help us show loading bars and status messages.
@@ -50,6 +55,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
       default: return 'plaintext';
     }
   };
+
+  // Expose the handleSave method to the parent via the ref
+  useImperativeHandle(ref, () => ({
+    save: handleSave
+  }));
 
   useEffect(() => {
     if (!activeFile) return;
@@ -163,6 +173,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ activeFile, theme, settings }) 
       </div>
     </div>
   );
-};
+});
 
 export default CodeEditor;
