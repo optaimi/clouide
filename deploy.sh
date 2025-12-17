@@ -13,7 +13,8 @@ echo "🚀 Starting Deployment..."
 echo "⬇️  Syncing with GitHub..."
 cd "$APP_DIR"
 git fetch --all
-git reset --hard origin/main
+##git reset --hard origin/main
+git reset --hard origin/dev
 chmod +x scripts/*.sh
 
 # --- 2. Build Frontend FIRST ---
