@@ -1,6 +1,3 @@
-type: uploaded file
-fileName: optaimi/clouide/optaimi-Clouide-52b704295fa97990c607eaae8a7e7e8a54540950/frontend/src/App.tsx
-fullContent:
 import React, { useState, useEffect } from 'react';
 import ProjectLoader from './components/ProjectLoader';
 import FileExplorer from './components/FileExplorer';
