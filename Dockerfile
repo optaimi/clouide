@@ -1,6 +1,3 @@
-type: uploaded file
-fileName: optaimi/clouide/optaimi-Clouide-52b704295fa97990c607eaae8a7e7e8a54540950/Dockerfile
-fullContent:
 FROM python:3.11-slim
 
 # Prevent interactive prompts
