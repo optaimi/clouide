@@ -1,20 +1,26 @@
+type: uploaded file
+fileName: optaimi/clouide/optaimi-Clouide-52b704295fa97990c607eaae8a7e7e8a54540950/Dockerfile
+fullContent:
 FROM python:3.11-slim
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=xterm-256color
 
-# 1. Install System Deps & Node.js 20 (Single Layer)
+# 1. Install System Deps, Node.js 20, and PHP
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
     curl \
     gnupg \
     build-essential \
-    ca-certificates && \
+    ca-certificates \
+    php && \
     mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | \
+    gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | \
+    tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
     apt-get install -y nodejs && \
     apt-get clean && \

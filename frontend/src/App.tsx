@@ -1,3 +1,6 @@
+type: uploaded file
+fileName: optaimi/clouide/optaimi-Clouide-52b704295fa97990c607eaae8a7e7e8a54540950/frontend/src/App.tsx
+fullContent:
 import React, { useState, useEffect } from 'react';
 import ProjectLoader from './components/ProjectLoader';
 import FileExplorer from './components/FileExplorer';
@@ -6,7 +9,7 @@ import Terminal from './components/Terminal';
 import MenuBar from './components/MenuBar';
 import WelcomeScreen from './components/WelcomeScreen';
 import api from './utils/api';
-import { TerminalSquare, Settings, X, Loader2 } from 'lucide-react';
+import { TerminalSquare, Settings, X, Loader2, Play } from 'lucide-react';
 import { applyTheme, getSavedTheme, Theme } from './utils/theme';
 
 const App: React.FC = () => {
@@ -94,6 +97,30 @@ const App: React.FC = () => {
   const handleThemeChange = (t: Theme) => {
     setCurrentTheme(t);
     applyTheme(t);
+  };
+
+  // --- Run Code Logic ---
+  const handleRunCode = () => {
+    if (!activeFile) return;
+    
+    // Ensure terminal is open
+    if (!isTerminalOpen) setIsTerminalOpen(true);
+
+    let command = '';
+    const ext = activeFile.split('.').pop()?.toLowerCase();
+
+    switch (ext) {
+      case 'php': command = `php "${activeFile}"`; break;
+      case 'py': command = `python3 "${activeFile}"`; break;
+      case 'js': command = `node "${activeFile}"`; break;
+      case 'ts': command = `npx tsx "${activeFile}"`; break;
+      case 'sh': command = `bash "${activeFile}"`; break;
+      default: 
+        command = `echo "No runner configured for .${ext} files"`;
+    }
+
+    // Dispatch event to Terminal component
+    window.dispatchEvent(new CustomEvent('clouide:run-command', { detail: command }));
   };
 
   // --- Modal Logic ---
@@ -207,13 +234,22 @@ const App: React.FC = () => {
 
           <div className="h-9 bg-ide-bg border-b border-ide-border flex items-center px-4 text-sm justify-between flex-shrink-0">
             <span className="opacity-80">{activeFile || "Welcome to Clouide"}</span>
-            <button 
-              onClick={() => setIsTerminalOpen(!isTerminalOpen)}
-              className={`p-1 rounded ${isTerminalOpen ? 'bg-ide-accent/20 text-ide-accent' : 'hover:bg-ide-activity'}`}
-              title="Toggle Terminal"
-            >
-              <TerminalSquare size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleRunCode}
+                className="p-1 rounded hover:bg-ide-activity text-green-500 hover:text-green-400 transition-colors"
+                title="Run Code"
+              >
+                <Play size={16} />
+              </button>
+              <button 
+                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
+                className={`p-1 rounded ${isTerminalOpen ? 'bg-ide-accent/20 text-ide-accent' : 'hover:bg-ide-activity'}`}
+                title="Toggle Terminal"
+              >
+                <TerminalSquare size={16} />
+              </button>
+            </div>
           </div>
           
           {activeFile === 'Welcome.Clouide' ? (
